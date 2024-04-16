@@ -1,0 +1,66 @@
+# --------------------------------------------------------
+# LEAP Hand: Low-Cost, Efficient, and Anthropomorphic Hand for Robot Learning
+# https://arxiv.org/abs/2309.06440
+# Copyright (c) 2023 Ananye Agarwal
+# Licensed under The MIT License [see LICENSE for details]
+# --------------------------------------------------------
+# Based on: IsaacGymEnvs
+# Copyright (c) 2018-2022, NVIDIA Corporation
+# Licence under BSD 3-Clause License
+# https://github.com/NVIDIA-Omniverse/IsaacGymEnvs/
+# --------------------------------------------------------
+
+name: LeapHandGrasp
+
+defaults:
+  - LeapHandRot
+
+env:
+  controller:
+    controlFrequencyInv: 8
+  
+  episodeLength: 50
+  genGrasps: True
+
+  disable_actions: True
+
+  randomGraspMethod: "original"     # "euler_angle", "euler_angle_for_flip" or "original"
+  # fix_reset_quat: False            # fix reset object quaternion as [0, 0, 0, 1]
+
+  randomization:
+    randomizeMass: True
+    randomizeMassLower: 0.05
+    randomizeMassUpper: 0.051
+    randomizeCOM: False
+    randomizeFriction: False
+    randomizeScale: False
+    randomizePDGains: False
+
+  # canonical_pose: [1.06, -0.58, 1.16, 1.36, 0.48, 1.60, 1.42, 1.31, 0.60, 0.00, 0.74, 1.68, 1.06, 0.58, 1.16, 1.36]     # for small (a=0.05cm)
+  # canonical_pose: [0.94, -0.67, 0.56, 1.08, 0.76, 1.79, 1.33, 0.75, 0.20, 0.00, 1.04, 1.10, 1.06, 0.68, 1.17, 0.32]      # for medium (a=0.075cm)
+  
+  ## cube_small_cache2
+  # canonical_pose:
+  #   - 0.5799616000000001
+  #   - -0.08480699999999997
+  #   - 1.1578969
+  #   - 1.4563744
+  #   - 0.1791765999999999
+  #   - 1.6162906
+  #   - 1.22978
+  #   - 1.5534919999999997
+  #   - 0.5110192
+  #   - 0.0
+  #   - 0.6409627
+  #   - 1.6189144
+  #   - 0.5799616000000001
+  #   - 0.08480699999999985
+  #   - 1.1598097
+  #   - 1.4563744
+
+  ## cube_small_cache3
+  # canonical_pose: [0.7501754, -0.46320356, 1.49415578, 0.69188388, -0.30827156, 1.87151516, 1.40058307, 1.63528238, 0.52161209, -0.08891214, 1.08458318, 1.18889363, 0.46638887, 0.00312673, 1.91906871, 0.2178839]
+  canonical_pose: [0.74250548, -1.12588324,  1.27479686,  0.93732102,  0.33139858, 1.7610687 ,  1.24565105,  1.21650539,  0.32986467,  0.10283528, 1.20423354,  1.03856357,  0.81613652,  1.34689365,  0.8636898 , 1.17355378]
+
+
+

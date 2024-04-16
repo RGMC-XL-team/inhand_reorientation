@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Load robot SRDF -->
+    <include file="$(find leap_moveit_config)/launch/planning_context.launch" />
+
+    <!-- Load robot URDF and RViz -->
+    <include file="$(find my_robot_description)/launch/view_leaphand.launch">
+        <arg name="rviz_file" value="view_leaphand_motion.rviz"/>
+    </include>
+
+    <!-- Publish DisplayTrajectory to RViz -->
+    <node pkg="leap_hardware" name="leaphand_node" type="test_leap_motion.py" output="screen" />
+
+</launch>

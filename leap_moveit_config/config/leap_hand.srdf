@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--This does not replace URDF, and is not an extension of URDF.
+    This is a format for representing semantic information about the robot structure.
+    A URDF file must exist for this robot as well, where the joints and the links that are referenced are defined
+-->
+<robot name="leap_hand">
+    <!--GROUPS: Representation of a set of joints and links. This can be useful for specifying DOF to plan for, defining arms, end effectors, etc-->
+    <!--LINKS: When a link is specified, the parent joint of that link (if it exists) is automatically included-->
+    <!--JOINTS: When a joint is specified, the child link of that joint (which will always exist) is automatically included-->
+    <!--CHAINS: When a chain is specified, all the links along the chain (including endpoints) are included in the group. Additionally, all the joints that are parents to included links are also included. This means that joints along the chain and the parent joint of the base link are included in the group-->
+    <!--SUBGROUPS: Groups can also be formed by referencing to already defined group names-->
+    <group name="thumb">
+        <chain base_link="palm_lower" tip_link="thumb_tip_center"/>
+    </group>
+    <group name="finger1">
+        <chain base_link="palm_lower" tip_link="finger1_tip_center"/>
+    </group>
+    <group name="finger2">
+        <chain base_link="palm_lower" tip_link="finger2_tip_center"/>
+    </group>
+    <group name="finger3">
+        <chain base_link="palm_lower" tip_link="finger3_tip_center"/>
+    </group>
+    <!--GROUP STATES: Purpose: Define a named state for a particular group, in terms of joint values. This is useful to define states like 'folded arms'-->
+    <group_state name="thumb_flat" group="thumb">
+        <joint name="joint_12" value="0"/>
+        <joint name="joint_13" value="0"/>
+        <joint name="joint_14" value="0"/>
+        <joint name="joint_15" value="0"/>
+    </group_state>
+    <group_state name="finger1_flat" group="finger1">
+        <joint name="joint_0" value="0"/>
+        <joint name="joint_1" value="0"/>
+        <joint name="joint_2" value="0"/>
+        <joint name="joint_3" value="0"/>
+    </group_state>
+    <group_state name="finger2_flat" group="finger2">
+        <joint name="joint_4" value="0"/>
+        <joint name="joint_5" value="0"/>
+        <joint name="joint_6" value="0"/>
+        <joint name="joint_7" value="0"/>
+    </group_state>
+    <group_state name="finger3_flat" group="finger3">
+        <joint name="joint_10" value="0"/>
+        <joint name="joint_11" value="0"/>
+        <joint name="joint_8" value="0"/>
+        <joint name="joint_9" value="0"/>
+    </group_state>
+    <!--END EFFECTOR: Purpose: Represent information about an end effector.-->
+    <end_effector name="thumb_tip" parent_link="thumb_tip_center" group="thumb"/>
+    <end_effector name="finger1_tip" parent_link="finger1_tip_center" group="finger1"/>
+    <end_effector name="finger2_tip" parent_link="finger2_tip_center" group="finger2"/>
+    <end_effector name="finger3_tip" parent_link="finger3_tip_center" group="finger3"/>
+    <!--DISABLE COLLISIONS: By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
+    <disable_collisions link1="dip" link2="fingertip" reason="Adjacent"/>
+    <disable_collisions link1="dip" link2="fingertip_new" reason="Never"/>
+    <disable_collisions link1="dip" link2="mcp_joint_3" reason="Never"/>
+    <disable_collisions link1="dip" link2="pip" reason="Adjacent"/>
+    <disable_collisions link1="dip" link2="pip_3" reason="Never"/>
+    <disable_collisions link1="dip_2" link2="fingertip_2" reason="Adjacent"/>
+    <disable_collisions link1="dip_2" link2="fingertip_2_new" reason="Never"/>
+    <disable_collisions link1="dip_2" link2="pip_2" reason="Adjacent"/>
+    <disable_collisions link1="dip_3" link2="fingertip_3" reason="Adjacent"/>
+    <disable_collisions link1="dip_3" link2="fingertip_3_new" reason="Never"/>
+    <disable_collisions link1="dip_3" link2="mcp_joint" reason="Never"/>
+    <disable_collisions link1="dip_3" link2="pip" reason="Never"/>
+    <disable_collisions link1="dip_3" link2="pip_3" reason="Adjacent"/>
+    <disable_collisions link1="dip_3" link2="pip_4" reason="Never"/>
+    <disable_collisions link1="dip_3" link2="thumb_pip" reason="Never"/>
+    <disable_collisions link1="fingertip" link2="fingertip_new" reason="Adjacent"/>
+    <disable_collisions link1="fingertip" link2="mcp_joint" reason="Never"/>
+    <disable_collisions link1="fingertip" link2="mcp_joint_3" reason="Never"/>
+    <disable_collisions link1="fingertip" link2="pip" reason="Never"/>
+    <disable_collisions link1="fingertip" link2="pip_3" reason="Never"/>
+    <disable_collisions link1="fingertip_2" link2="fingertip_2_new" reason="Adjacent"/>
+    <disable_collisions link1="fingertip_2" link2="mcp_joint_2" reason="Never"/>
+    <disable_collisions link1="fingertip_2" link2="pip_2" reason="Never"/>
+    <disable_collisions link1="fingertip_3" link2="fingertip_3_new" reason="Adjacent"/>
+    <disable_collisions link1="fingertip_3" link2="mcp_joint" reason="Never"/>
+    <disable_collisions link1="fingertip_3" link2="mcp_joint_3" reason="Never"/>
+    <disable_collisions link1="fingertip_3" link2="pip" reason="Never"/>
+    <disable_collisions link1="fingertip_3" link2="pip_3" reason="Never"/>
+    <disable_collisions link1="fingertip_3" link2="pip_4" reason="Never"/>
+    <disable_collisions link1="fingertip_3" link2="thumb_pip" reason="Never"/>
+    <disable_collisions link1="fingertip_3_new" link2="mcp_joint" reason="Never"/>
+    <disable_collisions link1="fingertip_3_new" link2="pip" reason="Never"/>
+    <disable_collisions link1="fingertip_3_new" link2="pip_4" reason="Never"/>
+    <disable_collisions link1="fingertip_new" link2="mcp_joint_3" reason="Never"/>
+    <disable_collisions link1="fingertip_new" link2="pip_3" reason="Never"/>
+    <disable_collisions link1="mcp_joint" link2="mcp_joint_2" reason="Never"/>
+    <disable_collisions link1="mcp_joint" link2="mcp_joint_3" reason="Never"/>
+    <disable_collisions link1="mcp_joint" link2="palm_lower" reason="Adjacent"/>
+    <disable_collisions link1="mcp_joint" link2="pip" reason="Adjacent"/>
+    <disable_collisions link1="mcp_joint" link2="pip_3" reason="Never"/>
+    <disable_collisions link1="mcp_joint" link2="pip_4" reason="Never"/>
+    <disable_collisions link1="mcp_joint" link2="thumb_pip" reason="Never"/>
+    <disable_collisions link1="mcp_joint_2" link2="mcp_joint_3" reason="Never"/>
+    <disable_collisions link1="mcp_joint_2" link2="palm_lower" reason="Adjacent"/>
+    <disable_collisions link1="mcp_joint_2" link2="pip" reason="Never"/>
+    <disable_collisions link1="mcp_joint_2" link2="pip_2" reason="Adjacent"/>
+    <disable_collisions link1="mcp_joint_2" link2="pip_4" reason="Never"/>
+    <disable_collisions link1="mcp_joint_2" link2="thumb_dip" reason="Never"/>
+    <disable_collisions link1="mcp_joint_2" link2="thumb_pip" reason="Never"/>
+    <disable_collisions link1="mcp_joint_3" link2="palm_lower" reason="Adjacent"/>
+    <disable_collisions link1="mcp_joint_3" link2="pip" reason="Never"/>
+    <disable_collisions link1="mcp_joint_3" link2="pip_2" reason="Never"/>
+    <disable_collisions link1="mcp_joint_3" link2="pip_3" reason="Adjacent"/>
+    <disable_collisions link1="mcp_joint_3" link2="pip_4" reason="Never"/>
+    <disable_collisions link1="mcp_joint_3" link2="thumb_dip" reason="Never"/>
+    <disable_collisions link1="mcp_joint_3" link2="thumb_fingertip" reason="Never"/>
+    <disable_collisions link1="mcp_joint_3" link2="thumb_pip" reason="Never"/>
+    <disable_collisions link1="palm_lower" link2="pip" reason="Never"/>
+    <disable_collisions link1="palm_lower" link2="pip_2" reason="Never"/>
+    <disable_collisions link1="palm_lower" link2="pip_3" reason="Never"/>
+    <disable_collisions link1="palm_lower" link2="pip_4" reason="Adjacent"/>
+    <disable_collisions link1="pip" link2="pip_3" reason="Never"/>
+    <disable_collisions link1="pip" link2="pip_4" reason="Never"/>
+    <disable_collisions link1="pip" link2="thumb_pip" reason="Never"/>
+    <disable_collisions link1="pip_2" link2="pip_4" reason="Never"/>
+    <disable_collisions link1="pip_2" link2="thumb_pip" reason="Never"/>
+    <disable_collisions link1="pip_3" link2="pip_4" reason="Never"/>
+    <disable_collisions link1="pip_3" link2="thumb_dip" reason="Never"/>
+    <disable_collisions link1="pip_3" link2="thumb_pip" reason="Never"/>
+    <disable_collisions link1="pip_4" link2="thumb_fingertip" reason="Never"/>
+    <disable_collisions link1="pip_4" link2="thumb_pip" reason="Adjacent"/>
+    <disable_collisions link1="thumb_dip" link2="thumb_fingertip" reason="Adjacent"/>
+    <disable_collisions link1="thumb_dip" link2="thumb_fingertip_new" reason="Never"/>
+    <disable_collisions link1="thumb_dip" link2="thumb_pip" reason="Adjacent"/>
+    <disable_collisions link1="thumb_fingertip" link2="thumb_fingertip_new" reason="Adjacent"/>
+    <disable_collisions link1="thumb_fingertip" link2="thumb_pip" reason="Never"/>
+    <disable_collisions link1="thumb_fingertip_new" link2="thumb_pip" reason="Never"/>
+</robot>

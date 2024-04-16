@@ -1,0 +1,33 @@
+<!-- 
+      This launch file is modified from example.launch
+      in the official LEAP_Hand_API GitHub repository.
+ -->
+<launch>
+
+  <arg name="free_move" default="true" />
+  <arg name="enable_visualization" default="true" />
+
+  <!-- Leap Hand hardware interface -->
+  <node pkg="leap_hardware" name="leaphand_node" type="leaphand_node.py" output="screen">
+    <param name="kP" type="double" value="800.0" />
+    <param name="kI" type="double" value="0.0" />
+    <param name="kD" type="double" value="200.0" />
+    <param name="curr_lim" type="double" value="500.0" />
+    <param name="free_move" type="bool" value="$(arg free_move)" />
+  </node>
+
+  <group if="$(arg enable_visualization)">
+    <!-- Leap Hand JointState publisher -->
+    <!-- 
+      This separate joint state publisher is deprecated,
+      because multiple hardware queries are not supported
+    -->
+    <!-- <node pkg="leap_hardware" name="leaphand_publisher" type="leap_joint_state_publisher.py" output="screen"/> -->
+
+    <!-- Leap Hand visualization -->
+    <include file = "$(find my_robot_description)/launch/view_leaphand.launch">
+      <arg name="use_slider" value="false"/>
+    </include>
+  </group>
+
+</launch>

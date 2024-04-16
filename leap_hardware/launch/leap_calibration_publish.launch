@@ -1,0 +1,31 @@
+<!-- 
+    This launch file is used for Leap Hand calibration.
+ -->
+
+ <launch>
+    <!-- enable hardware when you launch this file alone -->
+    <arg name="enable_hardware" default="true" />
+    <arg name="tracking_base_frame" default="camera_link" />
+    <arg name="calibration_file" default="/home/yongpeng/.ros/easy_handeye/my_leap_hand_e2h_calib_eye_on_base.yaml" />
+
+    <group if="$(arg enable_hardware)">
+      <!-- (start your robot's MoveIt! stack, e.g. include its moveit_planning_execution.launch) -->
+      <include file="$(find leap_hardware)/launch/leap_bringup.launch" >
+        <arg name="free_move" value="true"/>
+        <arg name="enable_visualization" value="true"/>
+      </include>
+      
+      <!-- (start your tracking system's ROS driver) -->
+      <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
+        <arg name="enable_pointcloud" value="true"/>
+      </include>
+    </group>
+
+    <include file="$(find easy_handeye)/launch/publish.launch">
+      <arg name="eye_on_hand" value="false"/>
+      <arg name="namespace_prefix" value="my_leap_hand_e2h_calib"/>
+      <arg name="tracking_base_frame" value="$(arg tracking_base_frame)"/>
+      <arg name="calibration_file" value="$(arg calibration_file)"/>
+    </include>
+
+  </launch>

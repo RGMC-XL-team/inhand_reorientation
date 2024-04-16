@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: my_robot_description
+    relative_path: urdf/leaphand.urdf.xacro
+    xacro_args: ""
+  SRDF:
+    relative_path: config/leap_hand.srdf
+  CONFIG:
+    author_name: Yongpeng Jiang
+    author_email: jiangyp19@gmail.com
+    generated_timestamp: 1712057107
