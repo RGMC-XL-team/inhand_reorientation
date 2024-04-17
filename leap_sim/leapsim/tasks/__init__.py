@@ -11,9 +11,9 @@
 # --------------------------------------------------------
 
 
-from .leap_hand_rot import LeapHandRot
-from .leap_hand_grasp import LeapHandGrasp
 from .leap_hand_flip import LeapHandFlip
+from .leap_hand_grasp import LeapHandGrasp
+from .leap_hand_rot import LeapHandRot
 from .leap_hand_rot_new import LeapHandRotNew
 
 # Mappings from strings to environments

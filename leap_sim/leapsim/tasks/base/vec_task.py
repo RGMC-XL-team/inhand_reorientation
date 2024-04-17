@@ -4,30 +4,35 @@
 # Copyright (c) 2023 Ananye Agarwal
 # Licensed under The MIT License [see LICENSE for details]
 # --------------------------------------------------------
-# Based on: 
+# Based on:
 # https://github.com/HaozhiQi/hora/blob/main/hora/tasks/base/vec_task.py
 # --------------------------------------------------------
 
-from typing import Dict, Any, Tuple
+import abc
+import operator
+import random
+import sys
+from abc import ABC
+from copy import deepcopy
+from typing import Any, Dict, Tuple
 
 import gym
-from gym import spaces
-
-from isaacgym import gymtorch, gymapi
-from isaacgym.torch_utils import to_torch
-from isaacgym.gymutil import get_property_setter_map, get_property_getter_map, get_default_setter_args, apply_random_samples, check_buckets, generate_random_samples
-
-import torch
 import numpy as np
-import operator, random
-from copy import deepcopy
-import sys
-
-import abc
-from abc import ABC
+import torch
+from gym import spaces
+from isaacgym import gymapi
+from isaacgym.gymutil import (
+    apply_random_samples,
+    check_buckets,
+    generate_random_samples,
+    get_default_setter_args,
+    get_property_getter_map,
+    get_property_setter_map,
+)
 
 EXISTING_SIM = None
 SCREEN_CAPTURE_RESOLUTION = (1027, 768)
+
 
 def _create_sim_once(gym, *args, **kwargs):
     global EXISTING_SIM
@@ -83,12 +88,12 @@ class Env(ABC):
         self.obs_space = spaces.Box(np.ones(self.num_obs) * -np.Inf, np.ones(self.num_obs) * np.Inf)
         self.state_space = spaces.Box(np.ones(self.num_states) * -np.Inf, np.ones(self.num_states) * np.Inf)
 
-        self.act_space = spaces.Box(np.ones(self.num_actions) * -1., np.ones(self.num_actions) * 1.)
+        self.act_space = spaces.Box(np.ones(self.num_actions) * -1.0, np.ones(self.num_actions) * 1.0)
 
         self.clip_obs = cfg["env"].get("clipObservations", np.Inf)
         self.clip_actions = cfg["env"].get("clipActions", np.Inf)
 
-    @abc.abstractmethod 
+    @abc.abstractmethod
     def allocate_buffers(self):
         """Create torch buffers for observations, rewards, actions dones and any additional data."""
 
@@ -104,7 +109,7 @@ class Env(ABC):
         """
 
     @abc.abstractmethod
-    def reset(self)-> Dict[str, torch.Tensor]:
+    def reset(self) -> Dict[str, torch.Tensor]:
         """Reset the environment.
         Returns:
             Observation dictionary
@@ -142,8 +147,11 @@ class Env(ABC):
         """Get the number of observations in the environment."""
         return self.num_observations
 
+
 class VecTaskRot(Env):
-    def __init__(self, cfg, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture=None, force_render=None):
+    def __init__(
+        self, cfg, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture=None, force_render=None
+    ):
         """Initialise the `VecTask`.
 
         Args:
@@ -155,16 +163,16 @@ class VecTaskRot(Env):
         super().__init__(cfg, rl_device, sim_device, graphics_device_id, headless)
 
         # controller
-        controller_config = cfg['env']['controller']
-        self.torque_control = controller_config['torque_control']
-        self.p_gain = controller_config['pgain']
-        self.d_gain = controller_config['dgain']
-        self.control_freq_inv = controller_config['controlFrequencyInv']
+        controller_config = cfg["env"]["controller"]
+        self.torque_control = controller_config["torque_control"]
+        self.p_gain = controller_config["pgain"]
+        self.d_gain = controller_config["dgain"]
+        self.control_freq_inv = controller_config["controlFrequencyInv"]
 
-        self.sim_params = self._parse_sim_params(cfg['physics_engine'], cfg['sim'])
-        if cfg['physics_engine'] == 'physx':
+        self.sim_params = self._parse_sim_params(cfg["physics_engine"], cfg["sim"])
+        if cfg["physics_engine"] == "physx":
             self.physics_engine = gymapi.SIM_PHYSX
-        elif cfg['physics_engine'] == 'flex':
+        elif cfg["physics_engine"] == "flex":
             self.physics_engine = gymapi.SIM_FLEX
         else:
             msg = f"Invalid physics engine backend: {cfg['physics_engine']}"
@@ -194,7 +202,7 @@ class VecTaskRot(Env):
         self.create_sim()
         self.gym.prepare_sim(self.sim)
         self.sim_initialized = True
-        
+
         self._set_viewer()
         self.obs_dict = {}
 
@@ -206,8 +214,8 @@ class VecTaskRot(Env):
         if not self.headless:
             # subscribe to keyboard shortcuts
             self.viewer = self.gym.create_viewer(self.sim, gymapi.CameraProperties())
-            self.gym.subscribe_viewer_keyboard_event(self.viewer, gymapi.KEY_ESCAPE, 'QUIT')
-            self.gym.subscribe_viewer_keyboard_event(self.viewer, gymapi.KEY_V, 'toggle_viewer_sync')
+            self.gym.subscribe_viewer_keyboard_event(self.viewer, gymapi.KEY_ESCAPE, "QUIT")
+            self.gym.subscribe_viewer_keyboard_event(self.viewer, gymapi.KEY_V, "toggle_viewer_sync")
 
             # set the camera position based on up axis
             sim_params = self.gym.get_sim_params(self.sim)
@@ -229,16 +237,15 @@ class VecTaskRot(Env):
         """
         # allocate buffers
         self.obs_buf = torch.zeros((self.num_envs, self.num_obs), device=self.device, dtype=torch.float)
-        self.obs_buf_lag_history = torch.zeros((
-            self.num_envs, 80, self.num_obs // 3
-        ), device=self.device, dtype=torch.float)
+        self.obs_buf_lag_history = torch.zeros(
+            (self.num_envs, 80, self.num_obs // 3), device=self.device, dtype=torch.float
+        )
         self.rew_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
         self.reset_buf = torch.ones(self.num_envs, device=self.device, dtype=torch.long)
         self.at_reset_buf = torch.ones(self.num_envs, device=self.device, dtype=torch.long)
         self.timeout_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.progress_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
-        self.randomize_buf = torch.zeros(
-            self.num_envs, device=self.device, dtype=torch.long)
+        self.randomize_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.extras = {}
 
     def set_sim_params_up_axis(self, sim_params: gymapi.SimParams, axis: str) -> int:
@@ -250,7 +257,7 @@ class VecTaskRot(Env):
         Returns:
             axis index for up axis.
         """
-        if axis == 'z':
+        if axis == "z":
             sim_params.up_axis = gymapi.UP_AXIS_Z
             # sim_params.gravity.x = 0
             # sim_params.gravity.y = 0
@@ -258,15 +265,14 @@ class VecTaskRot(Env):
             return 2
         return 1
 
-
     def create_sim(self):
         self.dt = self.sim_params.dt
         self.up_axis_idx = self.set_sim_params_up_axis(self.sim_params, self.up_axis)
         self.sim = self.gym.create_sim(self.device_id, self.graphics_device_id, self.physics_engine, self.sim_params)
         if self.sim is None:
-            print('*** Failed to create sim')
+            print("*** Failed to create sim")
             quit()
-        self._create_envs(self.num_envs, self.cfg['env']['envSpacing'], int(np.sqrt(self.num_envs)))
+        self._create_envs(self.num_envs, self.cfg["env"]["envSpacing"], int(np.sqrt(self.num_envs)))
 
         if self.randomize:
             self.apply_randomizations(self.randomization_params)
@@ -302,8 +308,8 @@ class VecTaskRot(Env):
             Observations are dict of observations (currently only one member called 'obs')
         """
         # TODO(yongpeng): debug domain randomization
-        if self.dr_randomizations.get('actions', None):
-            actions = self.dr_randomizations['actions']['noise_lambda'](actions)
+        if self.dr_randomizations.get("actions", None):
+            actions = self.dr_randomizations["actions"]["noise_lambda"](actions)
 
         action_tensor = torch.clamp(actions, -self.clip_actions, self.clip_actions)
         # apply actions
@@ -316,23 +322,24 @@ class VecTaskRot(Env):
             self.gym.simulate(self.sim)
 
         # to fix!
-        if self.device == 'cpu':
+        if self.device == "cpu":
             self.gym.fetch_results(self.sim, True)
 
         # fill time out buffer
         self.timeout_buf = torch.where(
             torch.greater_equal(self.progress_buf, self.max_episode_length - 1),
-            torch.ones_like(self.timeout_buf), torch.zeros_like(self.timeout_buf)
+            torch.ones_like(self.timeout_buf),
+            torch.zeros_like(self.timeout_buf),
         )
 
         # TODO(yongpeng): debug domain randomization
-        if self.dr_randomizations.get('observations', None):
-            self.obs_buf = self.dr_randomizations['observations']['noise_lambda'](self.obs_buf)
+        if self.dr_randomizations.get("observations", None):
+            self.obs_buf = self.dr_randomizations["observations"]["noise_lambda"](self.obs_buf)
 
         # compute observations, rewards, resets, ...
         self.post_physics_step()
-        self.extras['time_outs'] = self.timeout_buf.to(self.rl_device)
-        self.obs_dict['obs'] = torch.clamp(self.obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)
+        self.extras["time_outs"] = self.timeout_buf.to(self.rl_device)
+        self.obs_dict["obs"] = torch.clamp(self.obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)
         return self.obs_dict, self.rew_buf.to(self.rl_device), self.reset_buf.to(self.rl_device), self.extras
 
     def update_low_level_control(self):
@@ -358,7 +365,7 @@ class VecTaskRot(Env):
         zero_actions = self.zero_actions()
         # step the simulator
         self.step(zero_actions)
-        self.obs_dict['obs'] = torch.clamp(self.obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)
+        self.obs_dict["obs"] = torch.clamp(self.obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)
         return self.obs_dict
 
     def reset_idx(self, env_ids):
@@ -373,13 +380,13 @@ class VecTaskRot(Env):
 
             # check for keyboard events
             for evt in self.gym.query_viewer_action_events(self.viewer):
-                if evt.action == 'QUIT' and evt.value > 0:
+                if evt.action == "QUIT" and evt.value > 0:
                     sys.exit()
-                elif evt.action == 'toggle_viewer_sync' and evt.value > 0:
+                elif evt.action == "toggle_viewer_sync" and evt.value > 0:
                     self.enable_viewer_sync = not self.enable_viewer_sync
 
             # fetch results
-            if self.device != 'cpu':
+            if self.device != "cpu":
                 self.gym.fetch_results(self.sim, True)
 
             # step graphics
@@ -404,43 +411,41 @@ class VecTaskRot(Env):
         sim_params = gymapi.SimParams()
 
         # check correct up-axis
-        if cfg_sim['up_axis'] not in ['z', 'y']:
+        if cfg_sim["up_axis"] not in ["z", "y"]:
             msg = f"Invalid physics up-axis: {cfg_sim['up_axis']}"
             print(msg)
             raise ValueError(msg)
 
         # assign general sim parameters
-        sim_params.dt = cfg_sim['dt']
-        sim_params.num_client_threads = cfg_sim.get('num_client_threads', 0)
-        sim_params.use_gpu_pipeline = cfg_sim['use_gpu_pipeline']
-        sim_params.substeps = cfg_sim.get('substeps', 2)
+        sim_params.dt = cfg_sim["dt"]
+        sim_params.num_client_threads = cfg_sim.get("num_client_threads", 0)
+        sim_params.use_gpu_pipeline = cfg_sim["use_gpu_pipeline"]
+        sim_params.substeps = cfg_sim.get("substeps", 2)
 
         # assign up-axis
-        if cfg_sim['up_axis'] == 'z':
+        if cfg_sim["up_axis"] == "z":
             sim_params.up_axis = gymapi.UP_AXIS_Z
         else:
             sim_params.up_axis = gymapi.UP_AXIS_Y
 
         # assign gravity
-        sim_params.gravity = gymapi.Vec3(*cfg_sim['gravity'])
+        sim_params.gravity = gymapi.Vec3(*cfg_sim["gravity"])
 
         # cfgure physics parameters
-        if physics_engine == 'physx':
+        if physics_engine == "physx":
             # set the parameters
-            if 'physx' in cfg_sim:
-                for opt in cfg_sim['physx'].keys():
-                    if opt == 'contact_collection':
-                        setattr(sim_params.physx, opt, gymapi.ContactCollection(cfg_sim['physx'][opt]))
+            if "physx" in cfg_sim:
+                for opt in cfg_sim["physx"].keys():
+                    if opt == "contact_collection":
+                        setattr(sim_params.physx, opt, gymapi.ContactCollection(cfg_sim["physx"][opt]))
                     else:
-                        setattr(sim_params.physx, opt, cfg_sim['physx'][opt])
-        else:
-            # set the parameters
-            if 'flex' in cfg_sim:
-                for opt in cfg_sim['flex'].keys():
-                    setattr(sim_params.flex, opt, cfg_sim['flex'][opt])
+                        setattr(sim_params.physx, opt, cfg_sim["physx"][opt])
+        elif "flex" in cfg_sim:
+            for opt in cfg_sim["flex"].keys():
+                setattr(sim_params.flex, opt, cfg_sim["flex"][opt])
 
         return sim_params
-    
+
     # TODO(yongpeng): debug domain randomization
     def apply_randomizations(self, dr_params):
         """Apply domain randomizations to the environment.
@@ -464,7 +469,11 @@ class VecTaskRot(Env):
             env_ids = list(range(self.num_envs))
         else:
             do_nonenv_randomize = (self.last_step - self.last_rand_step) >= rand_freq
-            rand_envs = torch.where(self.randomize_buf >= rand_freq, torch.ones_like(self.randomize_buf), torch.zeros_like(self.randomize_buf))
+            rand_envs = torch.where(
+                self.randomize_buf >= rand_freq,
+                torch.ones_like(self.randomize_buf),
+                torch.zeros_like(self.randomize_buf),
+            )
             rand_envs = torch.logical_and(rand_envs, self.reset_buf)
             env_ids = torch.nonzero(rand_envs, as_tuple=False).squeeze(-1).tolist()
             self.randomize_buf[rand_envs] = 0
@@ -484,58 +493,66 @@ class VecTaskRot(Env):
             if nonphysical_param in dr_params and do_nonenv_randomize:
                 dist = dr_params[nonphysical_param]["distribution"]
                 op_type = dr_params[nonphysical_param]["operation"]
-                sched_type = dr_params[nonphysical_param]["schedule"] if "schedule" in dr_params[nonphysical_param] else None
-                sched_step = dr_params[nonphysical_param]["schedule_steps"] if "schedule" in dr_params[nonphysical_param] else None
-                op = operator.add if op_type == 'additive' else operator.mul
+                sched_type = (
+                    dr_params[nonphysical_param]["schedule"] if "schedule" in dr_params[nonphysical_param] else None
+                )
+                sched_step = (
+                    dr_params[nonphysical_param]["schedule_steps"]
+                    if "schedule" in dr_params[nonphysical_param]
+                    else None
+                )
+                op = operator.add if op_type == "additive" else operator.mul
 
-                if sched_type == 'linear':
-                    sched_scaling = 1.0 / sched_step * \
-                        min(self.last_step, sched_step)
-                elif sched_type == 'constant':
+                if sched_type == "linear":
+                    sched_scaling = 1.0 / sched_step * min(self.last_step, sched_step)
+                elif sched_type == "constant":
                     sched_scaling = 0 if self.last_step < sched_step else 1
                 else:
                     sched_scaling = 1
 
-                if dist == 'gaussian':
+                if dist == "gaussian":
                     mu, var = dr_params[nonphysical_param]["range"]
-                    mu_corr, var_corr = dr_params[nonphysical_param].get("range_correlated", [0., 0.])
+                    mu_corr, var_corr = dr_params[nonphysical_param].get("range_correlated", [0.0, 0.0])
 
-                    if op_type == 'additive':
+                    if op_type == "additive":
                         mu *= sched_scaling
                         var *= sched_scaling
                         mu_corr *= sched_scaling
                         var_corr *= sched_scaling
-                    elif op_type == 'scaling':
+                    elif op_type == "scaling":
                         var = var * sched_scaling  # scale up var over time
-                        mu = mu * sched_scaling + 1.0 * \
-                            (1.0 - sched_scaling)  # linearly interpolate
+                        mu = mu * sched_scaling + 1.0 * (1.0 - sched_scaling)  # linearly interpolate
 
                         var_corr = var_corr * sched_scaling  # scale up var over time
-                        mu_corr = mu_corr * sched_scaling + 1.0 * \
-                            (1.0 - sched_scaling)  # linearly interpolate
+                        mu_corr = mu_corr * sched_scaling + 1.0 * (1.0 - sched_scaling)  # linearly interpolate
 
                     def noise_lambda(tensor, param_name=nonphysical_param):
                         params = self.dr_randomizations[param_name]
-                        corr = params.get('corr', None)
+                        corr = params.get("corr", None)
                         if corr is None:
                             corr = torch.randn_like(tensor)
-                            params['corr'] = corr
-                        corr = corr * params['var_corr'] + params['mu_corr']
-                        return op(
-                            tensor, corr + torch.randn_like(tensor) * params['var'] + params['mu'])
+                            params["corr"] = corr
+                        corr = corr * params["var_corr"] + params["mu_corr"]
+                        return op(tensor, corr + torch.randn_like(tensor) * params["var"] + params["mu"])
 
-                    self.dr_randomizations[nonphysical_param] = {'mu': mu, 'var': var, 'mu_corr': mu_corr, 'var_corr': var_corr, 'noise_lambda': noise_lambda}
+                    self.dr_randomizations[nonphysical_param] = {
+                        "mu": mu,
+                        "var": var,
+                        "mu_corr": mu_corr,
+                        "var_corr": var_corr,
+                        "noise_lambda": noise_lambda,
+                    }
 
-                elif dist == 'uniform':
+                elif dist == "uniform":
                     lo, hi = dr_params[nonphysical_param]["range"]
-                    lo_corr, hi_corr = dr_params[nonphysical_param].get("range_correlated", [0., 0.])
+                    lo_corr, hi_corr = dr_params[nonphysical_param].get("range_correlated", [0.0, 0.0])
 
-                    if op_type == 'additive':
+                    if op_type == "additive":
                         lo *= sched_scaling
                         hi *= sched_scaling
                         lo_corr *= sched_scaling
                         hi_corr *= sched_scaling
-                    elif op_type == 'scaling':
+                    elif op_type == "scaling":
                         lo = lo * sched_scaling + 1.0 * (1.0 - sched_scaling)
                         hi = hi * sched_scaling + 1.0 * (1.0 - sched_scaling)
                         lo_corr = lo_corr * sched_scaling + 1.0 * (1.0 - sched_scaling)
@@ -543,26 +560,32 @@ class VecTaskRot(Env):
 
                     def noise_lambda(tensor, param_name=nonphysical_param):
                         params = self.dr_randomizations[param_name]
-                        corr = params.get('corr', None)
+                        corr = params.get("corr", None)
                         if corr is None:
                             corr = torch.randn_like(tensor)
-                            params['corr'] = corr
-                        corr = corr * (params['hi_corr'] - params['lo_corr']) + params['lo_corr']
-                        return op(tensor, corr + torch.rand_like(tensor) * (params['hi'] - params['lo']) + params['lo'])
+                            params["corr"] = corr
+                        corr = corr * (params["hi_corr"] - params["lo_corr"]) + params["lo_corr"]
+                        return op(tensor, corr + torch.rand_like(tensor) * (params["hi"] - params["lo"]) + params["lo"])
 
-                    self.dr_randomizations[nonphysical_param] = {'lo': lo, 'hi': hi, 'lo_corr': lo_corr, 'hi_corr': hi_corr, 'noise_lambda': noise_lambda}
+                    self.dr_randomizations[nonphysical_param] = {
+                        "lo": lo,
+                        "hi": hi,
+                        "lo_corr": lo_corr,
+                        "hi_corr": hi_corr,
+                        "noise_lambda": noise_lambda,
+                    }
 
         if "sim_params" in dr_params and do_nonenv_randomize:
             prop_attrs = dr_params["sim_params"]
             prop = self.gym.get_sim_params(self.sim)
 
             if self.first_randomization:
-                self.original_props["sim_params"] = {
-                    attr: getattr(prop, attr) for attr in dir(prop)}
+                self.original_props["sim_params"] = {attr: getattr(prop, attr) for attr in dir(prop)}
 
             for attr, attr_randomization_params in prop_attrs.items():
                 apply_random_samples(
-                    prop, self.original_props["sim_params"], attr, attr_randomization_params, self.last_step)
+                    prop, self.original_props["sim_params"], attr, attr_randomization_params, self.last_step
+                )
 
             self.gym.set_sim_params(self.sim, prop)
 
@@ -574,49 +597,50 @@ class VecTaskRot(Env):
         extern_offsets = {}
         if self.actor_params_generator is not None:
             for env_id in env_ids:
-                self.extern_actor_params[env_id] = \
-                    self.actor_params_generator.sample()
+                self.extern_actor_params[env_id] = self.actor_params_generator.sample()
                 extern_offsets[env_id] = 0
 
         # randomise all attributes of each actor (hand, cube etc..)
         # actor_properties are (stiffness, damping etc..)
 
-        # Loop over actors, then loop over envs, then loop over their props 
-        # and lastly loop over the ranges of the params 
+        # Loop over actors, then loop over envs, then loop over their props
+        # and lastly loop over the ranges of the params
 
         for actor, actor_properties in dr_params["actor_params"].items():
-
-            # Loop over all envs as this part is not tensorised yet 
+            # Loop over all envs as this part is not tensorised yet
             for env_id in env_ids:
                 env = self.envs[env_id]
                 handle = self.gym.find_actor_handle(env, actor)
                 extern_sample = self.extern_actor_params[env_id]
 
-                # randomise dof_props, rigid_body, rigid_shape properties 
+                # randomise dof_props, rigid_body, rigid_shape properties
                 # all obtained from the YAML file
-                # EXAMPLE: prop name: dof_properties, rigid_body_properties, rigid_shape properties  
-                #          prop_attrs: 
+                # EXAMPLE: prop name: dof_properties, rigid_body_properties, rigid_shape properties
+                #          prop_attrs:
                 #               {'damping': {'range': [0.3, 3.0], 'operation': 'scaling', 'distribution': 'loguniform'}
                 #               {'stiffness': {'range': [0.75, 1.5], 'operation': 'scaling', 'distribution': 'loguniform'}
                 for prop_name, prop_attrs in actor_properties.items():
-                    if prop_name == 'color':
-                        num_bodies = self.gym.get_actor_rigid_body_count(
-                            env, handle)
+                    if prop_name == "color":
+                        num_bodies = self.gym.get_actor_rigid_body_count(env, handle)
                         for n in range(num_bodies):
-                            self.gym.set_rigid_body_color(env, handle, n, gymapi.MESH_VISUAL,
-                                                          gymapi.Vec3(random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1)))
+                            self.gym.set_rigid_body_color(
+                                env,
+                                handle,
+                                n,
+                                gymapi.MESH_VISUAL,
+                                gymapi.Vec3(random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1)),
+                            )
                         continue
 
-                    if prop_name == 'scale':
-                        setup_only = prop_attrs.get('setup_only', False)
+                    if prop_name == "scale":
+                        setup_only = prop_attrs.get("setup_only", False)
                         if (setup_only and not self.sim_initialized) or not setup_only:
                             attr_randomization_params = prop_attrs
-                            sample = generate_random_samples(attr_randomization_params, 1,
-                                                             self.last_step, None)
+                            sample = generate_random_samples(attr_randomization_params, 1, self.last_step, None)
                             og_scale = 1
-                            if attr_randomization_params['operation'] == 'scaling':
+                            if attr_randomization_params["operation"] == "scaling":
                                 new_scale = og_scale * sample
-                            elif attr_randomization_params['operation'] == 'additive':
+                            elif attr_randomization_params["operation"] == "additive":
                                 new_scale = og_scale + sample
                             self.gym.set_actor_scale(env, handle, new_scale)
                         continue
@@ -626,34 +650,38 @@ class VecTaskRot(Env):
 
                     if isinstance(prop, list):
                         if self.first_randomization:
-                            self.original_props[prop_name] = [
-                                {attr: getattr(p, attr) for attr in dir(p)} for p in prop]
+                            self.original_props[prop_name] = [{attr: getattr(p, attr) for attr in dir(p)} for p in prop]
                         for p, og_p in zip(prop, self.original_props[prop_name]):
                             for attr, attr_randomization_params in prop_attrs.items():
-                                setup_only = attr_randomization_params.get('setup_only', False)
+                                setup_only = attr_randomization_params.get("setup_only", False)
                                 if (setup_only and not self.sim_initialized) or not setup_only:
                                     smpl = None
                                     if self.actor_params_generator is not None:
                                         smpl, extern_offsets[env_id] = get_attr_val_from_sample(
-                                            extern_sample, extern_offsets[env_id], p, attr)
-                                    apply_random_samples(
-                                        p, og_p, attr, attr_randomization_params,
-                                        self.last_step, smpl)
+                                            extern_sample, extern_offsets[env_id], p, attr
+                                        )
+                                    apply_random_samples(p, og_p, attr, attr_randomization_params, self.last_step, smpl)
                                 else:
                                     set_random_properties = False
                     else:
                         if self.first_randomization:
                             self.original_props[prop_name] = deepcopy(prop)
                         for attr, attr_randomization_params in prop_attrs.items():
-                            setup_only = attr_randomization_params.get('setup_only', False)
+                            setup_only = attr_randomization_params.get("setup_only", False)
                             if (setup_only and not self.sim_initialized) or not setup_only:
                                 smpl = None
                                 if self.actor_params_generator is not None:
                                     smpl, extern_offsets[env_id] = get_attr_val_from_sample(
-                                        extern_sample, extern_offsets[env_id], prop, attr)
+                                        extern_sample, extern_offsets[env_id], prop, attr
+                                    )
                                 apply_random_samples(
-                                    prop, self.original_props[prop_name], attr,
-                                    attr_randomization_params, self.last_step, smpl)
+                                    prop,
+                                    self.original_props[prop_name],
+                                    attr,
+                                    attr_randomization_params,
+                                    self.last_step,
+                                    smpl,
+                                )
                             else:
                                 set_random_properties = False
 
@@ -667,15 +695,23 @@ class VecTaskRot(Env):
                 if extern_offsets[env_id] > 0:
                     extern_sample = self.extern_actor_params[env_id]
                     if extern_offsets[env_id] != extern_sample.shape[0]:
-                        print('env_id', env_id,
-                              'extern_offset', extern_offsets[env_id],
-                              'vs extern_sample.shape', extern_sample.shape)
+                        print(
+                            "env_id",
+                            env_id,
+                            "extern_offset",
+                            extern_offsets[env_id],
+                            "vs extern_sample.shape",
+                            extern_sample.shape,
+                        )
                         raise Exception("Invalid extern_sample size")
 
         self.first_randomization = False
 
+
 class VecTaskRotGoal(Env):
-    def __init__(self, cfg, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture=None, force_render=None):
+    def __init__(
+        self, cfg, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture=None, force_render=None
+    ):
         """Initialise the `VecTask`.
 
         Note: VecTaskRotGoal is modified with goal randomization support, please
@@ -690,16 +726,16 @@ class VecTaskRotGoal(Env):
         super().__init__(cfg, rl_device, sim_device, graphics_device_id, headless)
 
         # controller
-        controller_config = cfg['env']['controller']
-        self.torque_control = controller_config['torque_control']
-        self.p_gain = controller_config['pgain']
-        self.d_gain = controller_config['dgain']
-        self.control_freq_inv = controller_config['controlFrequencyInv']
+        controller_config = cfg["env"]["controller"]
+        self.torque_control = controller_config["torque_control"]
+        self.p_gain = controller_config["pgain"]
+        self.d_gain = controller_config["dgain"]
+        self.control_freq_inv = controller_config["controlFrequencyInv"]
 
-        self.sim_params = self._parse_sim_params(cfg['physics_engine'], cfg['sim'])
-        if cfg['physics_engine'] == 'physx':
+        self.sim_params = self._parse_sim_params(cfg["physics_engine"], cfg["sim"])
+        if cfg["physics_engine"] == "physx":
             self.physics_engine = gymapi.SIM_PHYSX
-        elif cfg['physics_engine'] == 'flex':
+        elif cfg["physics_engine"] == "flex":
             self.physics_engine = gymapi.SIM_FLEX
         else:
             msg = f"Invalid physics engine backend: {cfg['physics_engine']}"
@@ -725,8 +761,8 @@ class VecTaskRotGoal(Env):
         if not self.headless:
             # subscribe to keyboard shortcuts
             self.viewer = self.gym.create_viewer(self.sim, gymapi.CameraProperties())
-            self.gym.subscribe_viewer_keyboard_event(self.viewer, gymapi.KEY_ESCAPE, 'QUIT')
-            self.gym.subscribe_viewer_keyboard_event(self.viewer, gymapi.KEY_V, 'toggle_viewer_sync')
+            self.gym.subscribe_viewer_keyboard_event(self.viewer, gymapi.KEY_ESCAPE, "QUIT")
+            self.gym.subscribe_viewer_keyboard_event(self.viewer, gymapi.KEY_V, "toggle_viewer_sync")
 
             # set the camera position based on up axis
             sim_params = self.gym.get_sim_params(self.sim)
@@ -748,9 +784,9 @@ class VecTaskRotGoal(Env):
         """
         # allocate buffers
         self.obs_buf = torch.zeros((self.num_envs, self.num_obs), device=self.device, dtype=torch.float)
-        self.obs_buf_lag_history = torch.zeros((
-            self.num_envs, 80, self.num_obs // 3
-        ), device=self.device, dtype=torch.float)
+        self.obs_buf_lag_history = torch.zeros(
+            (self.num_envs, 80, self.num_obs // 3), device=self.device, dtype=torch.float
+        )
         self.rew_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
         self.reset_buf = torch.ones(self.num_envs, device=self.device, dtype=torch.long)
         self.at_reset_buf = torch.ones(self.num_envs, device=self.device, dtype=torch.long)
@@ -759,8 +795,7 @@ class VecTaskRotGoal(Env):
         self.extras = {}
 
         # goal support
-        self.done_buf = torch.zeros(
-            self.num_envs, device=self.device, dtype=torch.long)
+        self.done_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
 
     def set_sim_params_up_axis(self, sim_params: gymapi.SimParams, axis: str) -> int:
         """Set gravity based on up axis and return axis index.
@@ -771,7 +806,7 @@ class VecTaskRotGoal(Env):
         Returns:
             axis index for up axis.
         """
-        if axis == 'z':
+        if axis == "z":
             sim_params.up_axis = gymapi.UP_AXIS_Z
             # sim_params.gravity.x = 0
             # sim_params.gravity.y = 0
@@ -779,15 +814,14 @@ class VecTaskRotGoal(Env):
             return 2
         return 1
 
-
     def create_sim(self):
         self.dt = self.sim_params.dt
         self.up_axis_idx = self.set_sim_params_up_axis(self.sim_params, self.up_axis)
         self.sim = self.gym.create_sim(self.device_id, self.graphics_device_id, self.physics_engine, self.sim_params)
         if self.sim is None:
-            print('*** Failed to create sim')
+            print("*** Failed to create sim")
             quit()
-        self._create_envs(self.num_envs, self.cfg['env']['envSpacing'], int(np.sqrt(self.num_envs)))
+        self._create_envs(self.num_envs, self.cfg["env"]["envSpacing"], int(np.sqrt(self.num_envs)))
 
     @abc.abstractmethod
     def _create_envs(self, num_envs, spacing, num_per_row):
@@ -832,19 +866,20 @@ class VecTaskRotGoal(Env):
             self.gym.simulate(self.sim)
 
         # to fix!
-        if self.device == 'cpu':
+        if self.device == "cpu":
             self.gym.fetch_results(self.sim, True)
 
         # fill time out buffer
         self.timeout_buf = torch.where(
             torch.greater_equal(self.progress_buf, self.max_episode_length - 1),
-            torch.ones_like(self.timeout_buf), torch.zeros_like(self.timeout_buf)
+            torch.ones_like(self.timeout_buf),
+            torch.zeros_like(self.timeout_buf),
         )
 
         # compute observations, rewards, resets, ...
         self.post_physics_step()
-        self.extras['time_outs'] = self.timeout_buf.to(self.rl_device)
-        self.obs_dict['obs'] = torch.clamp(self.obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)
+        self.extras["time_outs"] = self.timeout_buf.to(self.rl_device)
+        self.obs_dict["obs"] = torch.clamp(self.obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)
         return self.obs_dict, self.rew_buf.to(self.rl_device), self.done_buf.to(self.rl_device), self.extras
 
     def update_low_level_control(self):
@@ -870,7 +905,7 @@ class VecTaskRotGoal(Env):
         zero_actions = self.zero_actions()
         # step the simulator
         self.step(zero_actions)
-        self.obs_dict['obs'] = torch.clamp(self.obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)
+        self.obs_dict["obs"] = torch.clamp(self.obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)
         return self.obs_dict
 
     def reset_idx(self, env_ids):
@@ -885,13 +920,13 @@ class VecTaskRotGoal(Env):
 
             # check for keyboard events
             for evt in self.gym.query_viewer_action_events(self.viewer):
-                if evt.action == 'QUIT' and evt.value > 0:
+                if evt.action == "QUIT" and evt.value > 0:
                     sys.exit()
-                elif evt.action == 'toggle_viewer_sync' and evt.value > 0:
+                elif evt.action == "toggle_viewer_sync" and evt.value > 0:
                     self.enable_viewer_sync = not self.enable_viewer_sync
 
             # fetch results
-            if self.device != 'cpu':
+            if self.device != "cpu":
                 self.gym.fetch_results(self.sim, True)
 
             # step graphics
@@ -916,44 +951,42 @@ class VecTaskRotGoal(Env):
         sim_params = gymapi.SimParams()
 
         # check correct up-axis
-        if cfg_sim['up_axis'] not in ['z', 'y']:
+        if cfg_sim["up_axis"] not in ["z", "y"]:
             msg = f"Invalid physics up-axis: {cfg_sim['up_axis']}"
             print(msg)
             raise ValueError(msg)
 
         # assign general sim parameters
-        sim_params.dt = cfg_sim['dt']
-        sim_params.num_client_threads = cfg_sim.get('num_client_threads', 0)
-        sim_params.use_gpu_pipeline = cfg_sim['use_gpu_pipeline']
-        sim_params.substeps = cfg_sim.get('substeps', 2)
+        sim_params.dt = cfg_sim["dt"]
+        sim_params.num_client_threads = cfg_sim.get("num_client_threads", 0)
+        sim_params.use_gpu_pipeline = cfg_sim["use_gpu_pipeline"]
+        sim_params.substeps = cfg_sim.get("substeps", 2)
 
         # assign up-axis
-        if cfg_sim['up_axis'] == 'z':
+        if cfg_sim["up_axis"] == "z":
             sim_params.up_axis = gymapi.UP_AXIS_Z
         else:
             sim_params.up_axis = gymapi.UP_AXIS_Y
 
         # assign gravity
-        sim_params.gravity = gymapi.Vec3(*cfg_sim['gravity'])
+        sim_params.gravity = gymapi.Vec3(*cfg_sim["gravity"])
 
         # cfgure physics parameters
-        if physics_engine == 'physx':
+        if physics_engine == "physx":
             # set the parameters
-            if 'physx' in cfg_sim:
-                for opt in cfg_sim['physx'].keys():
-                    if opt == 'contact_collection':
-                        setattr(sim_params.physx, opt, gymapi.ContactCollection(cfg_sim['physx'][opt]))
+            if "physx" in cfg_sim:
+                for opt in cfg_sim["physx"].keys():
+                    if opt == "contact_collection":
+                        setattr(sim_params.physx, opt, gymapi.ContactCollection(cfg_sim["physx"][opt]))
                     else:
-                        setattr(sim_params.physx, opt, cfg_sim['physx'][opt])
-        else:
-            # set the parameters
-            if 'flex' in cfg_sim:
-                for opt in cfg_sim['flex'].keys():
-                    setattr(sim_params.flex, opt, cfg_sim['flex'][opt])
+                        setattr(sim_params.physx, opt, cfg_sim["physx"][opt])
+        elif "flex" in cfg_sim:
+            for opt in cfg_sim["flex"].keys():
+                setattr(sim_params.flex, opt, cfg_sim["flex"][opt])
 
         return sim_params
+
 
 """
     The VecTask is replaced with VecTaskRot, so we remove it here
 """
-

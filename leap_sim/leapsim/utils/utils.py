@@ -10,16 +10,16 @@
 # https://github.com/NVIDIA-Omniverse/IsaacGymEnvs/
 # --------------------------------------------------------
 
-import numpy as np
-import torch
-import random
+import importlib
 import os
-import git
-
+import random
 import shlex
 import subprocess
 
-import importlib
+import git
+import numpy as np
+import torch
+
 
 def module_available(module_path: str) -> bool:
     """Testing if given module is avalaible in your env.
@@ -32,16 +32,17 @@ def module_available(module_path: str) -> bool:
     False
     """
     try:
-        mods = module_path.split('.')
-        assert mods, 'nothing given to test'
+        mods = module_path.split(".")
+        assert mods, "nothing given to test"
         # it has to be tested as per partets
         for i in range(len(mods)):
-            module_path = '.'.join(mods[:i + 1])
+            module_path = ".".join(mods[: i + 1])
             if importlib.util.find_spec(module_path) is None:
                 return False
         return True
     except AttributeError:
         return False
+
 
 def get_current_commit_hash():
     repo = git.Repo(search_parent_directories=True)
@@ -49,20 +50,28 @@ def get_current_commit_hash():
 
     try:
         branch = repo.active_branch.name
-    except TypeError as e:
+    except TypeError:
         branch = "detached"
 
-    return "{}@{}".format(branch, sha)
+    return f"{branch}@{sha}"
+
 
 def set_np_formatting():
-    """ formats numpy print """
-    np.set_printoptions(edgeitems=30, infstr='inf',
-                        linewidth=4000, nanstr='nan', precision=2,
-                        suppress=False, threshold=10000, formatter=None)
+    """formats numpy print"""
+    np.set_printoptions(
+        edgeitems=30,
+        infstr="inf",
+        linewidth=4000,
+        nanstr="nan",
+        precision=2,
+        suppress=False,
+        threshold=10000,
+        formatter=None,
+    )
 
 
 def set_seed(seed, torch_deterministic=False, rank=0):
-    """ set seed across modules """
+    """set seed across modules"""
     if seed == -1 and torch_deterministic:
         seed = 42 + rank
     elif seed == -1:
@@ -70,18 +79,18 @@ def set_seed(seed, torch_deterministic=False, rank=0):
     else:
         seed = seed + rank
 
-    print("Setting seed: {}".format(seed))
+    print(f"Setting seed: {seed}")
 
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
     if torch_deterministic:
         # refer to https://docs.nvidia.com/cuda/cublas/index.html#cublasApi_reproducibility
-        os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
         torch.use_deterministic_algorithms(True)
@@ -90,6 +99,7 @@ def set_seed(seed, torch_deterministic=False, rank=0):
         torch.backends.cudnn.deterministic = False
 
     return seed
+
 
 def git_hash():
     cmd = 'git log -n 1 --pretty="%h"'
@@ -100,10 +110,11 @@ def git_hash():
 
 
 def git_diff_config(name):
-    cmd = f'git diff --unified=0 {name}'
+    cmd = f"git diff --unified=0 {name}"
     ret = subprocess.check_output(shlex.split(cmd)).strip()
     if isinstance(ret, bytes):
         ret = ret.decode()
     return ret
+
 
 # EOF

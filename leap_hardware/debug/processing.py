@@ -1,6 +1,5 @@
-from matplotlib import pyplot as plt
 import numpy as np
-
+from matplotlib import pyplot as plt
 
 OBS_IDX_DICT = {
     "dof_pos": (0, 16),
@@ -11,8 +10,9 @@ OBS_IDX_DICT = {
     "goal_rot": (45, 49),
     "quat_dist": (49, 53),
     "ftip_state": (53, 105),
-    "action": (105, 121)
+    "action": (105, 121),
 }
+
 
 def plot_joint_position():
     MOTOR_IDS = [1, 0, 2, 3, 12, 13, 14, 15, 5, 4, 6, 7, 9, 8, 10, 11]
@@ -27,7 +27,7 @@ def plot_joint_position():
     plt.figure()
     for i in range(16):
         _id = MOTOR_IDS[i]
-        plt.subplot(4, 4, i+1)
+        plt.subplot(4, 4, i + 1)
         plt.plot(t_knots, q_command[:, i], linestyle=":", label=f"cmd{_id}")
         plt.plot(t_knots, q_reach[:, i], linestyle="-", label=f"q{_id}")
         plt.legend()
@@ -35,9 +35,10 @@ def plot_joint_position():
     plt.title("hardware execution (use motor IDs)")
     plt.show()
 
+
 def plot_object_pose():
     obs_full = np.load("./obs_full_sim_rotz_goal.npy").squeeze(1)
-    idx_start, idx_end = OBS_IDX_DICT['obj_pose']
+    idx_start, idx_end = OBS_IDX_DICT["obj_pose"]
     obj_pose = obs_full[:, idx_start:idx_end]
 
     hz = 20
@@ -45,12 +46,12 @@ def plot_object_pose():
     t_knots = np.linspace(0, t_end, len(obj_pose))
 
     plt.figure()
-    plt.plot(t_knots, obj_pose[:, :3], label=['x', 'y', 'z'])
+    plt.plot(t_knots, obj_pose[:, :3], label=["x", "y", "z"])
     plt.legend()
     plt.title("position")
 
     plt.figure()
-    plt.plot(t_knots, obj_pose[:, 3:], label=['qx', 'qy', 'qz', 'qw'])
+    plt.plot(t_knots, obj_pose[:, 3:], label=["qx", "qy", "qz", "qw"])
     plt.legend()
     plt.title("orientation")
 

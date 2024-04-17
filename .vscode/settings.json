@@ -6,19 +6,25 @@
         "editor.formatOnSave": true
     },
     "[python]": {
-        // "editor.codeActionsOnSave": {
-        //     "source.fixAll": "explicit",
-        //     "source.organizeImports": "explicit"
-        // },
-        "editor.defaultFormatter": "charliermarsh.ruff"
-        // "editor.formatOnSave": true
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+        },
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true
     },
-    // "[xml]": {
-    //     "editor.formatOnSave": true
-    // },
-    // "[yaml]": {
-    //     "editor.formatOnSave": true
-    // },
+    "[xml]": {
+        "editor.formatOnSave": true
+    },
+    "[yaml]": {
+        "editor.formatOnSave": true
+    },
     "redhat.telemetry.enabled": false,
-    "xml.format.maxLineWidth": 100
+    "xml.format.maxLineWidth": 100,
+    "cSpell.words": [
+        "ICRA",
+        "leaphand",
+        "omegaconf",
+        "RGMC"
+    ]
 }

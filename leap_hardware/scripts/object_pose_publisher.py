@@ -1,30 +1,36 @@
 #! /usr/bin/env python3
-# -*-coding:utf-8-*
 
 """
-    This script reads apriltag poses, do filtering
-    and publish the newest tag frames
+This script reads apriltag poses, do filtering
+and publish the newest tag frames
 """
 
 from enum import Enum
+
 import rospy
-import yaml
 import tf2_ros
-from geometry_msgs.msg import Pose, TransformStamped
+import yaml
+from geometry_msgs.msg import Pose
 
 from leap_hardware.ros_utils import *
 from leap_hardware.srv import object_state
 
-DEFAULT_CUBE_FACE_OFFSET_FILE = "/home/yongpeng/competition/RGMC_XL/leap_ws/src/leap_hardware/config/cube_face_offset.yaml"
-DEFAULT_CUBE_TAG_FILE = "/home/yongpeng/competition/RGMC_XL/leap_ws/src/RGMC_In-Hand_Manipulation_2024/config/tags_cube.yaml"
+DEFAULT_CUBE_FACE_OFFSET_FILE = (
+    "/home/yongpeng/competition/RGMC_XL/leap_ws/src/leap_hardware/config/cube_face_offset.yaml"
+)
+DEFAULT_CUBE_TAG_FILE = (
+    "/home/yongpeng/competition/RGMC_XL/leap_ws/src/RGMC_In-Hand_Manipulation_2024/config/tags_cube.yaml"
+)
 DEFAULT_APRILTAG_OFFSET = [0.01, 0.01, 0.0]
+
 
 class PoseStatus(Enum):
     UPDATED = 0
     OUTDATED = 1
     NOTFOUND = 2
 
-class ObjectPosePublisher(object):
+
+class ObjectPosePublisher:
     def __init__(self) -> None:
         self.private_brodcaster = tf2_ros.TransformBroadcaster()
         self.tfBuffer = tf2_ros.Buffer()
@@ -40,9 +46,11 @@ class ObjectPosePublisher(object):
         self.last_tf_time = rospy.Time.now()
         self.current_tf_time = rospy.Time.now()
 
-        self.object_pose = transform_to_posevec(self.current_object_tf)     # wxyz
-        self.object_velocity = np.zeros(6,)
-    
+        self.object_pose = transform_to_posevec(self.current_object_tf)  # wxyz
+        self.object_velocity = np.zeros(
+            6,
+        )
+
         # useful dics and lists
         self.tag_to_object_offset = {}
         self.tag_to_face_map = {}
@@ -67,12 +75,12 @@ class ObjectPosePublisher(object):
                     self.face_to_tag_map[face] = tags[face]["tag"]
                     for tag in tags[face]["tag"]:
                         self.tag_to_face_map[tag] = face
-                
+
             except yaml.YAMLError as exc:
-                rospy.logerr('Invalid Cube File')
+                rospy.logerr("Invalid Cube File")
                 print(exc)
                 return
-            
+
         for face in self.face_to_tag_map:
             self.all_tag_ids += self.face_to_tag_map[face]
         self.all_tag_ids = list(set(self.all_tag_ids))
@@ -81,8 +89,10 @@ class ObjectPosePublisher(object):
             self.tag_pose[tag] = Pose()
 
     def load_cube_face_offset(self):
-        cube_face_offset_file = rospy.get_param("/cube_pose_publisher/cube_face_offset_file", DEFAULT_CUBE_FACE_OFFSET_FILE)
-        T_april2face = xyz_rpy_to_rigidtransform(DEFAULT_APRILTAG_OFFSET, [0, 0, np.pi/2])
+        cube_face_offset_file = rospy.get_param(
+            "/cube_pose_publisher/cube_face_offset_file", DEFAULT_CUBE_FACE_OFFSET_FILE
+        )
+        T_april2face = xyz_rpy_to_rigidtransform(DEFAULT_APRILTAG_OFFSET, [0, 0, np.pi / 2])
         with open(cube_face_offset_file) as f:
             faces = yaml.safe_load(f)["faces"]
             for face in faces:
@@ -94,7 +104,7 @@ class ObjectPosePublisher(object):
                 tags = self.face_to_tag_map[face]
                 for tag in tags:
                     self.tag_to_object_offset[tag] = T_object2april
-            
+
     def lookup_tag_poses_from_tf(self):
         for tag in self.all_tag_ids:
             tag_tf_time = None
@@ -102,13 +112,13 @@ class ObjectPosePublisher(object):
                 transform = self.tfBuffer.lookup_transform(
                     "world",
                     "tag_" + str(tag),
-                    rospy.Time(0)   # latest
+                    rospy.Time(0),  # latest
                 )
                 self.tag_status[tag] = PoseStatus.UPDATED
                 self.tag_pose[tag] = ros_transform_to_rigidtransform(transform)
                 self.tag_receive_dt[tag] = (rospy.Time.now() - transform.header.stamp).to_sec()
                 tag_tf_time = transform.header.stamp
-            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
                 self.tag_status[tag] = PoseStatus.OUTDATED
                 self.tag_receive_dt[tag] = -np.inf
             if self.tag_receive_dt[tag] > 0.1:
@@ -126,7 +136,7 @@ class ObjectPosePublisher(object):
                 _tag_pose = self.tag_pose[tag]
                 _object_pose = np.matmul(_tag_pose, self.tag_to_object_offset[tag])
                 valid_transforms.append(_object_pose)
-        
+
         valid_transforms = np.array(valid_transforms).reshape(-1, 4, 4)
         if len(valid_transforms) > 1:
             avg_object_tf = average_transforms(valid_transforms)
@@ -138,28 +148,27 @@ class ObjectPosePublisher(object):
         # smoothing
         if avg_object_tf is not None:
             avg_object_tf = interpolate_two_transforms(
-                tf0=self.last_object_tf,
-                tf1=avg_object_tf,
-                amount=self.object_tf_smooth_factor
+                tf0=self.last_object_tf, tf1=avg_object_tf, amount=self.object_tf_smooth_factor
             )
 
         return avg_object_tf
-    
+
     def publish_object_pose(self, object_tf):
         if object_tf is None:
             return False
-        
+
         self.current_object_tf = object_tf.copy()
         self.object_pose = transform_to_posevec(self.current_object_tf)
 
-        object_tf_ros = rigidtransform_to_ros_transform(object_tf, parent_frame="world", child_frame=self.object_tf_name)
+        object_tf_ros = rigidtransform_to_ros_transform(
+            object_tf, parent_frame="world", child_frame=self.object_tf_name
+        )
         self.private_brodcaster.sendTransform(object_tf_ros)
         return True
-    
+
     def compute_other_states(self):
         dt = max((self.current_tf_time - self.last_tf_time).to_sec(), 1e-5)
-        _pos_vel, _ang_vel = \
-            compute_velocity_from_two_transforms(self.last_object_tf, self.current_object_tf, dt)
+        _pos_vel, _ang_vel = compute_velocity_from_two_transforms(self.last_object_tf, self.current_object_tf, dt)
         self.object_velocity = np.concatenate([_pos_vel, _ang_vel])
 
         # update history
@@ -170,7 +179,7 @@ class ObjectPosePublisher(object):
         pos, quat = self.object_pose[:3], self.object_pose[3:]
         return {
             "pose": np.concatenate((pos, quat[[1, 2, 3, 0]])),  # xyzw
-            "velocity": self.object_velocity
+            "velocity": self.object_velocity,
         }
 
     def main_loop(self):
@@ -190,7 +199,7 @@ class ObjectPosePublisher(object):
 
             self.rate.sleep()
 
-            
+
 if __name__ == "__main__":
     nh = rospy.init_node("object_pose_publisher")
     publisher = ObjectPosePublisher()

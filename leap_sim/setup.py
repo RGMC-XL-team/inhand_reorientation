@@ -1,12 +1,8 @@
 """Installation script for the 'leapsim' python package."""
 
-from __future__ import absolute_import
-from __future__ import print_function
-from __future__ import division
-
-from setuptools import setup, find_packages
-
 import os
+
+from setuptools import find_packages, setup
 
 root_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -21,8 +17,7 @@ INSTALL_REQUIRES = [
     "hydra-core>=1.1",
     "rl-games==1.5.2",
     "pyvirtualdisplay",
-    ]
-
+]
 
 
 # Installation operation

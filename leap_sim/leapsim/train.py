@@ -11,38 +11,31 @@
 # --------------------------------------------------------
 
 import datetime
-import isaacgym
+import os
 
-import os
-import hydra
-import yaml
-from omegaconf import DictConfig, OmegaConf
-from hydra.utils import to_absolute_path
 import gym
-import sys
-import os
-import rl_games
-import inspect
+import hydra
+from hydra.utils import to_absolute_path
+from omegaconf import DictConfig, OmegaConf
 
 from leapsim.utils.reformat import omegaconf_to_dict, print_dict
-
-from leapsim.utils.utils import set_np_formatting, set_seed, get_current_commit_hash
+from leapsim.utils.utils import set_np_formatting, set_seed
 
 ## OmegaConf & Hydra Config
+
 
 # Resolvers used in hydra configs (see https://omegaconf.readthedocs.io/en/2.1_branch/usage.html#resolvers)
 @hydra.main(config_name="config", config_path="./cfg")
 def launch_rlg_hydra(cfg: DictConfig):
-    from leapsim.utils.rlgames_utils import RLGPUEnv, RLGPUAlgoObserver, get_rlgames_env_creator
+    import shutil
+
+    from rl_games.algos_torch import model_builder
     from rl_games.common import env_configurations, vecenv
     from rl_games.torch_runner import Runner
-    from rl_games.algos_torch import model_builder
-    from leapsim.learning import amp_continuous
-    from leapsim.learning import amp_players
-    from leapsim.learning import amp_models
-    from leapsim.learning import amp_network_builder
+
     import leapsim
-    import shutil
+    from leapsim.learning import amp_continuous, amp_models, amp_network_builder, amp_players
+    from leapsim.utils.rlgames_utils import RLGPUAlgoObserver, RLGPUEnv
 
     time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     run_name = f"{cfg.default_run_name}_{time_str}"
@@ -61,8 +54,8 @@ def launch_rlg_hydra(cfg: DictConfig):
     rank = int(os.getenv("LOCAL_RANK", "0"))
     if cfg.multi_gpu:
         # torchrun --standalone --nnodes=1 --nproc_per_node=2 train.py
-        cfg.sim_device = f'cuda:{rank}'
-        cfg.rl_device = f'cuda:{rank}'
+        cfg.sim_device = f"cuda:{rank}"
+        cfg.rl_device = f"cuda:{rank}"
 
     # sets seed. if seed is -1 will pick a random one
     cfg.seed += rank
@@ -84,14 +77,14 @@ def launch_rlg_hydra(cfg: DictConfig):
         # if wandb is activated use wandb assigned run name
         run_name = wandb.run.name
         run_url = wandb.run.url
-    
-    cfg.train.params.config.full_experiment_name = run_name # This name is used to save checkpoints
+
+    cfg.train.params.config.full_experiment_name = run_name  # This name is used to save checkpoints
 
     def create_env_thunk(**kwargs):
         envs = leapsim.make(
-            cfg.seed, 
-            cfg.task_name, 
-            cfg.task.env.numEnvs, 
+            cfg.seed,
+            cfg.task_name,
+            cfg.task.env.numEnvs,
             cfg.sim_device,
             cfg.rl_device,
             cfg.graphics_device_id,
@@ -113,20 +106,24 @@ def launch_rlg_hydra(cfg: DictConfig):
         return envs
 
     # register the rl-games adapter to use inside the runner
-    vecenv.register('RLGPU',
-                    lambda config_name, num_actors, **kwargs: RLGPUEnv(config_name, num_actors, **kwargs))
-    env_configurations.register('rlgpu', {
-        'vecenv_type': 'RLGPU',
-        'env_creator': create_env_thunk,
-    })
+    vecenv.register("RLGPU", lambda config_name, num_actors, **kwargs: RLGPUEnv(config_name, num_actors, **kwargs))
+    env_configurations.register(
+        "rlgpu",
+        {
+            "vecenv_type": "RLGPU",
+            "env_creator": create_env_thunk,
+        },
+    )
 
     # register new AMP network builder and agent
     def build_runner(algo_observer):
         runner = Runner(algo_observer)
-        runner.algo_factory.register_builder('amp_continuous', lambda **kwargs : amp_continuous.AMPAgent(**kwargs))
-        runner.player_factory.register_builder('amp_continuous', lambda **kwargs : amp_players.AMPPlayerContinuous(**kwargs))
-        model_builder.register_model('continuous_amp', lambda network, **kwargs : amp_models.ModelAMPContinuous(network))
-        model_builder.register_network('amp', lambda **kwargs : amp_network_builder.AMPBuilder())
+        runner.algo_factory.register_builder("amp_continuous", lambda **kwargs: amp_continuous.AMPAgent(**kwargs))
+        runner.player_factory.register_builder(
+            "amp_continuous", lambda **kwargs: amp_players.AMPPlayerContinuous(**kwargs)
+        )
+        model_builder.register_model("continuous_amp", lambda network, **kwargs: amp_models.ModelAMPContinuous(network))
+        model_builder.register_network("amp", lambda **kwargs: amp_network_builder.AMPBuilder())
 
         return runner
 
@@ -139,18 +136,18 @@ def launch_rlg_hydra(cfg: DictConfig):
     runner.reset()
 
     # dump config dict
-    experiment_dir = os.path.join('runs', run_name)
+    experiment_dir = os.path.join("runs", run_name)
     os.makedirs(experiment_dir, exist_ok=True)
     shutil.copyfile("cfg/task/LeapHandRot.yaml", os.path.join(experiment_dir, "LeapHandRot.yaml"))
     shutil.copyfile("cfg/train/LeapHandRotPPO.yaml", os.path.join(experiment_dir, "LeapHandRotPPO.yaml"))
 
-    with open(os.path.join(experiment_dir, 'config.yaml'), 'w') as f:
+    with open(os.path.join(experiment_dir, "config.yaml"), "w") as f:
         f.write(OmegaConf.to_yaml(cfg))
 
     if cfg.wandb_activate and rank == 0:
-        wandb.save(os.path.join(experiment_dir, 'config.yaml'))
-        wandb.save(os.path.join(experiment_dir, 'LeapHandRot.yaml'))
-        wandb.save(os.path.join(experiment_dir, 'LeapHandRotPPO.yaml'))
+        wandb.save(os.path.join(experiment_dir, "config.yaml"))
+        wandb.save(os.path.join(experiment_dir, "LeapHandRot.yaml"))
+        wandb.save(os.path.join(experiment_dir, "LeapHandRotPPO.yaml"))
 
     if cfg.multi_gpu:
         import horovod.torch as hvd
@@ -161,15 +158,11 @@ def launch_rlg_hydra(cfg: DictConfig):
 
     os.system("rm -rf ~/.isaacgym/vhacd")
 
-    runner.run({
-        'train': not cfg.test,
-        'play': cfg.test,
-        'checkpoint' : cfg.checkpoint,
-        'sigma' : None
-    })
+    runner.run({"train": not cfg.test, "play": cfg.test, "checkpoint": cfg.checkpoint, "sigma": None})
 
     if cfg.wandb_activate and rank == 0:
         wandb.finish()
+
 
 if __name__ == "__main__":
     launch_rlg_hydra()
