@@ -57,7 +57,7 @@ class LeapHand:
         # pinocchio FK model
         # TODO(yongpeng): set this as ROS param
         LEAP_HAND_URDF = "/home/yongpeng/competition/RGMC_XL/leap_ws/src/my_robot_description/urdf/leaphand.urdf"
-        self.leap_kin = LeapHandPinocchio(LEAP_HAND_URDF)
+        # self.leap_kin = LeapHandPinocchio(LEAP_HAND_URDF)
 
         self.current_joint_positions = np.zeros(
             16,

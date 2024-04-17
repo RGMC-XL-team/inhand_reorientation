@@ -1,0 +1,23 @@
+<launch>
+
+  <!-- the camera -->
+  <include file="$(find azure_kinect_ros_driver)/launch/kinect_rgbd.launch">
+    <arg name="depth_enabled" value="false" />
+    <!-- <arg name="depth_mode" value="NFOV_UNBINNED" />  -->
+    <arg name="fps" value="30" />
+    <arg name="color_resolution" value="1536P" />
+    <!-- <arg name="color_control_mode_auto" value="false" /> -->
+    <!-- <arg name="color_exposure_usec" value="20000" /> -->
+    <!-- <arg name="calibration_url"
+    value="file:///home/robotics/Mingrui/project_dlo_planning_22/DLO_planning_2_private/data/camera/kinect_info"/> -->
+    <arg name="num_worker_threads" value="4" />
+    <arg name="overwrite_robot_description" value="false" />
+    <!-- <arg name="tf_prefix" value="cam_" /> -->
+    <!-- <arg name="depth_registration" value="true" />  -->
+    <!-- <arg name="node_start_delay" value="0.0" />                                   -->
+  </include>
+
+  <!-- the Apriltap detection -->
+  <include file="$(find leap_task_A)/launch/tag_detect.launch"></include>
+
+</launch>

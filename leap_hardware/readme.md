@@ -88,6 +88,8 @@ pip install dynamixel_sdk numpy
 - Connect 5v power to the hand (the dynamixels should light up during boot up.)
 - Connect the Micro USB cable to the hand (Do not use too many USB extensions)
 - Find the USB port using [Dynamixel Wizard](https://emanual.robotis.com/docs/en/software/dynamixel/dynamixel_wizard2/)
+  - In the Dynamixel Software: 
+    - Tool - Options: only need to select 4000000 bps.
 - `roslaunch example.launch`
 #### How to use
 - This is an example Launch script for just LEAP Hand.  The hand should come to life.  It makes topics you can publish to and services. You can see that with for example:

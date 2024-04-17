@@ -7,6 +7,9 @@ RGMC_In-Hand_Manipulation_2024/*
 apriltag/*
 apriltag_ros/*
 easy_handeye/*
+Azure_Kinect_ROS_Driver/*
+azure_kinect_notes/*
+leap_model_based/*
 # generated cache, data and logs
 cache/
 runs/
