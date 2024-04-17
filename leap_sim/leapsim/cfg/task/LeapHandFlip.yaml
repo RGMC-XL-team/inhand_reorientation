@@ -15,6 +15,80 @@ name: LeapHandFlip
 physics_engine: ${..physics_engine}
 on_evaluation: False
 
+# IsaacGymEnvs style domain randomization
+randomize: True
+randomization_params:
+  frequency: 1200
+  observations:
+    range: [ 0, .002 ]
+    range_correlated: [ 0, .001 ]
+    operation: "additive"
+    distribution: "gaussian"
+  actions:
+    range: [ 0., .05 ]
+    range_correlated: [ 0, .015 ]
+    operation: "additive"
+    distribution: "gaussian"
+  sim_params:
+    gravity:
+      range: [ 0, 0.4 ]
+      operation: "additive"
+      distribution: "gaussian"
+  actor_params:
+    hand:
+      # color: True
+      dof_properties:
+        damping:
+          range: [ 0.8, 1.2 ]
+          operation: "scaling"
+          distribution: "uniform"
+        stiffness:
+          range: [ 0.8, 1.2 ]
+          operation: "scaling"
+          distribution: "uniform"
+      rigid_body_properties:
+        mass:
+          range: [ 0.8, 1.2 ]
+          operation: "scaling"
+          distribution: "uniform"
+          setup_only: True
+      rigid_shape_properties:
+        friction:
+          num_buckets: 100
+          range: [ 0.3, 2.0 ]
+          operation: "scaling"
+          distribution: "uniform"
+          same_for_all: True
+        restitution:
+          num_buckets: 100
+          range: [ 0.0, 2 ]
+          operation: "scaling"
+          distribution: "uniform"
+    object:
+      # scale:
+      #   range: [ 0.95, 1.05 ]
+      #   operation: "scaling"
+      #   distribution: "uniform"
+      #   setup_only: True
+      rigid_body_properties:
+        mass:
+          range: [ 0.3, 1.8 ]
+          operation: "scaling"
+          distribution: "uniform"
+          setup_only: True
+      rigid_shape_properties:
+        friction:
+          num_buckets: 100
+          range: [ 0.3, 2.0 ]
+          operation: "scaling"
+          distribution: "uniform"
+          same_for_all: True
+        restitution:
+          num_buckets: 100
+          range: [ 0.0, 2 ]
+          operation: "scaling"
+          distribution: "uniform"
+
 env:
   # debug and save
   debug:
@@ -25,11 +99,14 @@ env:
     
   # environment basic
   numEnvs: ${resolve_default:8192,${...num_envs}}
-  numObservations: 121
+  numObservations: 102
   numActions: 16
   envSpacing: 0.25
   phase_period: 2
   exec_lag: 1
+
+  # goal condition
+  goal_conditioned: True
 
   # observation type
   observation_type: "full_state"  # "proprioception" or "full_state"
@@ -38,9 +115,10 @@ env:
   include_history: True
 
   # observation
-  include_obj_pose: True
+  include_obj_pose: False
+  include_obj_target: True
 
-  episodeLength: 400      # default: 400
+  episodeLength: 20      # default: 400
   aggregateMode: 1
 
   controller:
@@ -101,8 +179,8 @@ env:
 
   # newly added
   goalReward:
-    dof_pos_diff_thresh: 0.5
-    dof_vel_thresh: 1.0       # 0.25
+    dof_pos_diff_thresh: 100.0  # 0.5
+    dof_vel_thresh: 1.0         # 0.25
     obj_lin_vel_thresh: 0.04
     obj_ang_vel_thresh: 1.5   # 0.5
     action_norm_thresh: 2.0   # 1.0
@@ -115,7 +193,7 @@ env:
     energy_upper_bound: 10
     # success
     successTolerance: 0.4
-    successTolerancePos: 0.04    # default: 0.04
+    successTolerancePos: 0.5    # default: 0.04
     maxConsecutiveSuccesses: 20
 
   override_dist:

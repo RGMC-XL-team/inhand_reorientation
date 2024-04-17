@@ -99,6 +99,9 @@ env:
   exec_lag: 1
   include_obj_pose: true    # object pose
 
+  # goal condition
+  goal_conditioned: False
+
   episodeLength: 400
   enableDebugVis: False
   aggregateMode: 1
