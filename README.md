@@ -6,6 +6,10 @@ This is the repository for ICRA 2024 RGMC. This repository is maintained by XL t
 
 Create a ROS workspace, cd into `src/`, then clone this repository.
 
+For workspace preparation before hardware running, please see `doc/hardware_setup.md`
+
+For common launch steps, please see `doc/launch.md`
+
 ## Contributing
 
 This repository use [ruff](https://github.com/astral-sh/ruff) to lint and format python codes, [vscode-xml](https://github.com/redhat-developer/vscode-xml) and [vscode-yaml](https://github.com/redhat-developer/vscode-yaml) for formatting their corresponding files.

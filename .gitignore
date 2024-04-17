@@ -1,5 +1,15 @@
 leap_hardware/debug/*.npy
 leap_sim/leapsim/debug/*
+# hardware drivers and perception modules
+marker_detection/*
+realsense-ros/*
+RGMC_In-Hand_Manipulation_2024/*
+apriltag/*
+apriltag_ros/*
+easy_handeye/*
+# generated cache, data and logs
+cache/
+runs/
 
 # Created by https://www.toptal.com/developers/gitignore/api/ros,linux,python,c++,macos,windows,git,visualstudiocode
 # Edit at https://www.toptal.com/developers/gitignore?templates=ros,linux,python,c++,macos,windows,git,visualstudiocode
