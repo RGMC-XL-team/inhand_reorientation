@@ -16,8 +16,7 @@ def compute_reward(
     target_pos,
     target_rot,
     actions,
-    fingertip_pos,
-    ftip_pos_mask,
+    # fingertip_pos, ftip_pos_mask,
     object_linvel,
     object_angvel,
     dof_vel,
@@ -35,7 +34,7 @@ def compute_reward(
     fall_penalty: float,
     success_tolerance: float,
     success_tolerance_pos: float,
-    ftip_reward_scale: float,
+    # ftip_reward_scale: float,
     energy_scale: float,
     dof_pos_diff_thresh: float,
     dof_vel_thresh: float,
@@ -43,8 +42,7 @@ def compute_reward(
     obj_ang_vel_thresh: float,
     action_norm_thresh: float,
     penalize_palm_contact: bool,
-    palm_cf,
-    palm_cf_scale: float,
+    # palm_cf, palm_cf_scale: float,
     clip_energy_reward: bool,
     energy_upper_bound: float,
 ):
@@ -57,13 +55,13 @@ def compute_reward(
     masked_goal_dist = torch.norm((object_pos - target_pos) * goal_mask, p=2, dim=-1)
 
     reward_terms = dict()
-    if ftip_reward_scale is not None and ftip_reward_scale < 0:
-        ftip_pos_mask = torch.tensor(ftip_pos_mask, dtype=torch.float).to(fingertip_pos.device).repeat(num_envs, 1)
-        ftip_diff = (fingertip_pos.view(num_envs, -1, 3) - object_pos[:, None, :]) * ftip_pos_mask[:, :, None]
-        ftip_dist = torch.linalg.norm(ftip_diff, dim=-1).view(num_envs, -1)
-        ftip_dist_mean = ftip_dist.mean(dim=-1)
-        ftip_reward = ftip_dist_mean * ftip_reward_scale
-        reward_terms["ftip_reward"] = ftip_reward
+    # if ftip_reward_scale is not None and ftip_reward_scale < 0:
+    #     ftip_pos_mask = torch.tensor(ftip_pos_mask, dtype=torch.float).to(fingertip_pos.device).repeat(num_envs, 1)
+    #     ftip_diff = (fingertip_pos.view(num_envs, -1, 3) - object_pos[:, None, :]) * ftip_pos_mask[:, :, None]
+    #     ftip_dist = torch.linalg.norm(ftip_diff, dim=-1).view(num_envs, -1)
+    #     ftip_dist_mean = ftip_dist.mean(dim=-1)
+    #     ftip_reward = ftip_dist_mean * ftip_reward_scale
+    #     reward_terms['ftip_reward'] = ftip_reward
 
     object_linvel_norm = torch.linalg.norm(object_linvel, dim=-1)
     object_angvel_norm = torch.linalg.norm(object_angvel, dim=-1)
@@ -99,9 +97,9 @@ def compute_reward(
         energy_cost = torch.clamp(energy_cost, max=energy_upper_bound)
     reward_terms["energy_reward"] = -energy_cost * energy_scale
 
-    if penalize_palm_contact:
-        in_contact = torch.abs(palm_cf).sum(-1) > 0.5  # 0.2
-        reward_terms["palm_contact_reward"] = -in_contact.float() * palm_cf_scale
+    # if penalize_palm_contact:
+    #     in_contact = torch.abs(palm_cf).sum(-1) > 0.5                       # 0.2
+    #     reward_terms['palm_contact_reward'] = -in_contact.float() * palm_cf_scale
 
     dof_vel_norm = torch.linalg.norm(dof_vel, dim=-1)
 
@@ -113,8 +111,9 @@ def compute_reward(
         & (object_angvel_norm <= obj_ang_vel_thresh)
         & (dof_pos_diff <= dof_pos_diff_thresh)
     )  # this forces the fingers to reset after manipulation
-    if penalize_palm_contact:
-        goal_reach = goal_reach & (torch.abs(palm_cf).sum(-1) < 0.5)  # 0.2
+
+    # if penalize_palm_contact:
+    #     goal_reach = goal_reach & (torch.abs(palm_cf).sum(-1) < 0.5)        # 0.2
     # goal_reach = goal_reach & (action_norm <= action_norm_thresh)
     # goal_resets: 1) reset_goal_buf, 2) goal reach?
 
@@ -143,8 +142,9 @@ def compute_reward(
     reward = torch.where(goal_reach, reward + reach_goal_bonus, reward)
     reward = torch.where(fall_envs, reward + fall_penalty, reward)
     time_due_envs = progress_buf >= max_episode_length - 1
-    # resets: 1) reset_buf, 2) time due, 3) fall
+    # resets: 1) reset_buf, 2) time due, 3) fall, 4) goal reach
     resets = torch.where(time_due_envs, torch.ones_like(resets), resets)
+    resets = torch.where(goal_reach, torch.ones_like(resets), resets)
     # dones: 1) goal reach, 2) fall, 3) time due
     dones = torch.logical_or(dones, time_due_envs)
     return (
@@ -174,9 +174,7 @@ def compute_leaphand_reward(
     target_rot,
     reward_cfg,
     actions,
-    fingertip_pos=None,
-    fingertip_vel=None,
-    ftip_pos_mask=None,
+    # fingertip_pos=None, fingertip_vel=None, ftip_pos_mask=None,
     object_linvel=None,
     object_angvel=None,
     dof_vel=None,
@@ -184,7 +182,7 @@ def compute_leaphand_reward(
     dof_pos=None,
     target_dof_pos=None,
     dof_pos_mask=None,
-    palm_cf=None,
+    # palm_cf=None
 ):
     rot_reward_scale = reward_cfg["rotRewardScale"]
     rot_eps = reward_cfg["rotEps"]
@@ -195,7 +193,7 @@ def compute_leaphand_reward(
     fall_penalty = reward_cfg["fallPenalty"]
     success_tolerance = reward_cfg["successTolerance"]
     success_tolerance_pos = reward_cfg["successTolerancePos"]
-    ftip_reward_scale = reward_cfg["ftipRewardScale"]
+    # ftip_reward_scale = reward_cfg['ftipRewardScale']
     penalize_palm_contact = reward_cfg["pen_palm_contact"]
     # dof_pos_mask = reward_cfg['dof_pos_mask'] if 'dof_pos_mask' in reward_cfg else None
     dof_pos_reward_scale = reward_cfg["poseDiffPenaltyScale"]
@@ -210,8 +208,8 @@ def compute_leaphand_reward(
         target_pos=target_pos,
         target_rot=target_rot,
         actions=actions,
-        fingertip_pos=fingertip_pos,
-        ftip_pos_mask=ftip_pos_mask,
+        # fingertip_pos=fingertip_pos,
+        # ftip_pos_mask=ftip_pos_mask,
         object_linvel=object_linvel,
         object_angvel=object_angvel,
         dof_vel=dof_vel,
@@ -229,7 +227,7 @@ def compute_leaphand_reward(
         fall_penalty=fall_penalty,
         success_tolerance=success_tolerance,
         success_tolerance_pos=success_tolerance_pos,
-        ftip_reward_scale=ftip_reward_scale,
+        # ftip_reward_scale=ftip_reward_scale,
         energy_scale=reward_cfg["energy_scale"],
         dof_pos_diff_thresh=reward_cfg["dof_pos_diff_thresh"],
         dof_vel_thresh=reward_cfg["dof_vel_thresh"],
@@ -237,8 +235,8 @@ def compute_leaphand_reward(
         obj_ang_vel_thresh=reward_cfg["obj_ang_vel_thresh"],
         action_norm_thresh=reward_cfg["action_norm_thresh"],
         penalize_palm_contact=penalize_palm_contact,
-        palm_cf=palm_cf if palm_cf is not None else torch.ones(1),
-        palm_cf_scale=reward_cfg["palm_cf_scale"],
+        # palm_cf=palm_cf if palm_cf is not None else torch.ones(1),
+        # palm_cf_scale=reward_cfg['palm_cf_scale'],
         clip_energy_reward=reward_cfg["clip_energy_reward"],
         energy_upper_bound=reward_cfg["energy_upper_bound"],
     )

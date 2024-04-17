@@ -25,11 +25,11 @@
         "omegaconf",
         "RGMC"
     ],
-    "redhat.telemetry.enabled": false,
-    "xml.format.maxLineWidth": 100,
     "python.analysis.extraPaths": [
         "./leap_hardware/src",
         "./leap_utils/src",
         "./leap_utils/src"
-    ]
+    ],
+    "redhat.telemetry.enabled": false,
+    "xml.format.maxLineWidth": 100
 }

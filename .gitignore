@@ -12,6 +12,8 @@ azure_kinect_notes/*
 # generated cache, data and logs
 cache/
 runs/
+backups/
+
 
 # Created by https://www.toptal.com/developers/gitignore/api/ros,linux,python,c++,macos,windows,git,visualstudiocode
 # Edit at https://www.toptal.com/developers/gitignore?templates=ros,linux,python,c++,macos,windows,git,visualstudiocode

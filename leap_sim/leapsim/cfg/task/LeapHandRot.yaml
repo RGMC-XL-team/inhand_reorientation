@@ -97,7 +97,10 @@ env:
   envSpacing: 0.25
   phase_period: 2
   exec_lag: 1
-  include_obj_pose: true    # object pose
+  include_obj_pose: false    # object pose
+
+  # goal condition
+  goal_conditioned: False
 
   episodeLength: 400
   enableDebugVis: False

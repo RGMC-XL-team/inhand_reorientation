@@ -44,13 +44,13 @@ params:
       regularizer:
         name: None
 
-    # rnn:
-    #   name: gru
-    #   units: 256
-    #   layers: 1
-    #   before_mlp: true
-    #   concat_input: true
-    #   layer_norm: true
+    rnn:
+      name: gru
+      units: 256
+      layers: 1
+      before_mlp: true
+      concat_input: true
+      layer_norm: true
 
   load_checkpoint: ${if:${...checkpoint},True,False} # flag which sets whether to load the checkpoint
   load_path: ${...checkpoint} # path to the checkpoint to load
@@ -85,8 +85,8 @@ params:
     truncate_grads: True
     e_clip: 0.2
     horizon_length: 32
-    minibatch_size: 32768
-    # minibatch_size: 16
+    # minibatch_size: 32768
+    minibatch_size: 16
     mini_epochs: 5
     critic_coef: 4
     clip_value: true

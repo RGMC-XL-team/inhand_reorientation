@@ -168,6 +168,7 @@ class VecTaskRot(Env):
         self.p_gain = controller_config["pgain"]
         self.d_gain = controller_config["dgain"]
         self.control_freq_inv = controller_config["controlFrequencyInv"]
+        self.is_goal_conditioned = cfg["env"]["goal_conditioned"]
 
         self.sim_params = self._parse_sim_params(cfg["physics_engine"], cfg["sim"])
         if cfg["physics_engine"] == "physx":
@@ -247,6 +248,9 @@ class VecTaskRot(Env):
         self.progress_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.randomize_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         self.extras = {}
+
+        # goal support
+        self.done_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
 
     def set_sim_params_up_axis(self, sim_params: gymapi.SimParams, axis: str) -> int:
         """Set gravity based on up axis and return axis index.
@@ -340,7 +344,10 @@ class VecTaskRot(Env):
         self.post_physics_step()
         self.extras["time_outs"] = self.timeout_buf.to(self.rl_device)
         self.obs_dict["obs"] = torch.clamp(self.obs_buf, -self.clip_obs, self.clip_obs).to(self.rl_device)
-        return self.obs_dict, self.rew_buf.to(self.rl_device), self.reset_buf.to(self.rl_device), self.extras
+        if self.is_goal_conditioned:
+            return self.obs_dict, self.rew_buf.to(self.rl_device), self.done_buf.to(self.rl_device), self.extras
+        else:
+            return self.obs_dict, self.rew_buf.to(self.rl_device), self.reset_buf.to(self.rl_device), self.extras
 
     def update_low_level_control(self):
         pass

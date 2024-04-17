@@ -15,37 +15,115 @@ name: LeapHandFlip
 physics_engine: ${..physics_engine}
 on_evaluation: False
 
+# IsaacGymEnvs style domain randomization
+randomize: True
+randomization_params:
+  frequency: 1200
+  observations:
+    range: [0, .002]
+    range_correlated: [0, .001]
+    operation: "additive"
+    distribution: "gaussian"
+  actions:
+    range: [0., .05]
+    range_correlated: [0, .015]
+    operation: "additive"
+    distribution: "gaussian"
+  sim_params:
+    gravity:
+      range: [0, 0.4]
+      operation: "additive"
+      distribution: "gaussian"
+  actor_params:
+    hand:
+      # color: True
+      dof_properties:
+        damping:
+          range: [0.8, 1.2]
+          operation: "scaling"
+          distribution: "uniform"
+        stiffness:
+          range: [0.8, 1.2]
+          operation: "scaling"
+          distribution: "uniform"
+      rigid_body_properties:
+        mass:
+          range: [0.8, 1.2]
+          operation: "scaling"
+          distribution: "uniform"
+          setup_only: True
+      rigid_shape_properties:
+        friction:
+          num_buckets: 100
+          range: [0.3, 2.0]
+          operation: "scaling"
+          distribution: "uniform"
+          same_for_all: True
+        restitution:
+          num_buckets: 100
+          range: [0.0, 2]
+          operation: "scaling"
+          distribution: "uniform"
+    object:
+      # scale:
+      #   range: [ 0.95, 1.05 ]
+      #   operation: "scaling"
+      #   distribution: "uniform"
+      #   setup_only: True
+      rigid_body_properties:
+        mass:
+          range: [0.3, 1.8]
+          operation: "scaling"
+          distribution: "uniform"
+          setup_only: True
+      rigid_shape_properties:
+        friction:
+          num_buckets: 100
+          range: [0.3, 2.0]
+          operation: "scaling"
+          distribution: "uniform"
+          same_for_all: True
+        restitution:
+          num_buckets: 100
+          range: [0.0, 2]
+          operation: "scaling"
+          distribution: "uniform"
+
 env:
   # debug and save
-  debug:
-    record:
-      duration: 20.0
-      suffix: "rotz_goal"
+  # debug:
+  #   record:
+  #     duration: 20.0
+  #     suffix: "rotz_goal"
   enableDebugVis: False
-    
+
   # environment basic
   numEnvs: ${resolve_default:8192,${...num_envs}}
-  numObservations: 121
+  numObservations: 102
   numActions: 16
   envSpacing: 0.25
   phase_period: 2
   exec_lag: 1
 
+  # goal condition
+  goal_conditioned: True
+
   # observation type
-  observation_type: "full_state"  # "proprioception" or "full_state"
+  observation_type: "full_state" # "proprioception" or "full_state"
 
   # history
   include_history: True
 
   # observation
-  include_obj_pose: True
+  include_obj_pose: False
+  include_obj_target: True
 
-  episodeLength: 400      # default: 400
+  episodeLength: 400 # default: 400
   aggregateMode: 1
 
   controller:
     torque_control: False
-    controlFrequencyInv: 6  # 20Hz
+    controlFrequencyInv: 6 # 20Hz
     pgain: 3
     dgain: 0.1
 
@@ -54,12 +132,12 @@ env:
   # clipObservations: 5.0
   clipActions: 1.0
   reset_height_threshold: 0.4
-  grasp_cache_name: 'leap_hand_in_palm_cube' # This must be supplied via command line
+  grasp_cache_name: "leap_hand_in_palm_cube" # This must be supplied via command line
   grasp_cache_len: 1024
 
   # Random reset grasping pose
   random_reset_grasps: True
-  reset_dof_pos_noise: 0.04      # default: 0.04
+  reset_dof_pos_noise: 0.04 # default: 0.04
   reset_dof_vel_noise: 0.005
   reset_position_noise: 0.015
   reset_position_noise_scale: [1, 1, 0.2]
@@ -83,49 +161,49 @@ env:
 
   # Set target motion
   desired_motion:
-    resetGoalType: "random_rot"   # "random_quat" or "random_rot"
-    flipAxis: "z"                 # "x", "y" or "z"
+    resetGoalType: "random_rot" # "random_quat" or "random_rot"
+    flipAxis: "z" # "x", "y" or "z"
 
   rew_scale: 1.0
 
   reward:
-    poseDiffPenaltyScale: -0.025  # -0.1
-    ftipRewardScale: -2.          # -1.
+    poseDiffPenaltyScale: -0.025 # -0.1
+    ftipRewardScale: -2. # -1.
     fallDistance: 0.24
-    fallPenalty: -5   # -100
-    energy_scale: 1    # 20
+    fallPenalty: -5 # -100
+    energy_scale: 1 # 20
     pen_palm_contact: False
     palm_cf_scale: 1
-    aware_ftip_pos_names: ['finger1_tip_center', 'finger3_tip_center']
+    aware_ftip_pos_names: ["finger1_tip_center", "finger3_tip_center"]
     dof_pos_mask: [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1]
 
   # newly added
   goalReward:
-    dof_pos_diff_thresh: 0.5
-    dof_vel_thresh: 1.0       # 0.25
+    dof_pos_diff_thresh: 100.0 # 0.5
+    dof_vel_thresh: 1.0 # 0.25
     obj_lin_vel_thresh: 0.04
-    obj_ang_vel_thresh: 1.5   # 0.5
-    action_norm_thresh: 2.0   # 1.0
+    obj_ang_vel_thresh: 1.5 # 0.5
+    action_norm_thresh: 2.0 # 1.0
     reachGoalBonus: 800
-    rotRewardScale: 1.0   # 1.0
-    posRewardScale: 0.02  # 0.05
+    rotRewardScale: 1.0 # 1.0
+    posRewardScale: 0.02 # 0.05
     rotEps: 0.1
     posEps: 0.08
     clip_energy_reward: True
     energy_upper_bound: 10
     # success
     successTolerance: 0.4
-    successTolerancePos: 0.04    # default: 0.04
+    successTolerancePos: 0.5 # default: 0.04
     maxConsecutiveSuccesses: 20
 
   override_dist:
     cube:
-      override_object_init_z: 0.57      # 0.57 for normal cube (7.5cm)
-      override_object_init_x: -0.03     # -0.03 for normal cube (7.5cm)
+      override_object_init_z: 0.57 # 0.57 for normal cube (7.5cm)
+      override_object_init_x: -0.03 # -0.03 for normal cube (7.5cm)
       override_object_init_y: 0.04
     cube_small:
-      override_object_init_z: 0.58    # 0.5575 for small cube (5cm)
-      override_object_init_x: -0.05     # -0.04 for small cube (5cm)
+      override_object_init_z: 0.58 # 0.5575 for small cube (5cm)
+      override_object_init_x: -0.05 # -0.04 for small cube (5cm)
       override_object_init_y: 0.04
 
   # canonical_pose: [0.1458, -1.0470, 1.7247, -0.2187, 1.2985, 1.6139, 0.9757, 1.0728, -0.1054, 0.0290, 1.6039, 0.1227, -0.1084, 0.9652, 1.7317, 0.1071]
@@ -142,7 +220,7 @@ env:
     - 0.0290
     - 1.6039
     - 0.1227
-    - -0.1084 
+    - -0.1084
     - 0.9652
     - 1.7317
     - 0.1071
@@ -163,9 +241,9 @@ env:
     randomizeScale: True
     # if scale_list_init is True, randomizeScaleLower and randomizeScaleUpper is not useful
     scaleListInit: True
-    randomizeScaleList: [0.95, 0.9, 1.0, 1.05, 1.1]     
-    randomizeScaleLower: 0.75  # only useful when not scaleListInit
-    randomizeScaleUpper: 0.8  # only useful when not scaleListInit
+    randomizeScaleList: [0.95, 0.9, 1.0, 1.05, 1.1]
+    randomizeScaleLower: 0.75 # only useful when not scaleListInit
+    randomizeScaleUpper: 0.8 # only useful when not scaleListInit
     randomizePDGains: True
     randomizePGainLower: 2.9
     randomizePGainUpper: 3.1
@@ -180,14 +258,14 @@ env:
     enableObjFriction: True
 
   object:
-    type: 'cube_small'    # or 'cube_small'
+    type: "cube_small" # or 'cube_small'
     sampleProb: [1.0]
 
   sim_to_real_indices: [1, 0, 2, 3, 9, 8, 10, 11, 13, 12, 14, 15, 4, 5, 6, 7]
   real_to_sim_indices: [1, 0, 2, 3, 12, 13, 14, 15, 5, 4, 6, 7, 9, 8, 10, 11]
 
   asset:
-    handAsset: 'assets/leap_hand/leaphand_high_palm.urdf'
+    handAsset: "assets/leap_hand/leaphand_high_palm.urdf"
     # handAsset: 'assets/leap_hand/robot.urdf'
 
   # set to True if you use camera sensors in the environment
@@ -196,7 +274,7 @@ env:
 sim:
   dt: 0.0083333 # 120 Hz
   substeps: 1
-  up_axis: 'z'
+  up_axis: "z"
   use_gpu_pipeline: ${eq:${...pipeline},'gpu'}
   gravity: [0.0, 0.0, -9.81]
   physx:

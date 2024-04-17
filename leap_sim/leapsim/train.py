@@ -13,6 +13,7 @@
 import datetime
 import os
 
+import isaacgym
 import gym
 import hydra
 from hydra.utils import to_absolute_path

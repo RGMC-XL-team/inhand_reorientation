@@ -33,6 +33,7 @@ cd <path-to-leap_sim-pkg>/leapsim
 
 python3 train.py task=<环境，如LeapHandRot> max_iterations=1000 task.env.grasp_cache_name=<手的reset pose distribution，如custom_grasp_cache> wandb_activate=false
 ```
+- 
 - 部署
 ```
 # sequential, proprioception input

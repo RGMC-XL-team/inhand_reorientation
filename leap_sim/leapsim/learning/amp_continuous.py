@@ -13,8 +13,8 @@
 import time
 
 import numpy as np
-import torch
 from isaacgym.torch_utils import *
+import torch
 from leapsim.learning import common_agent, replay_buffer
 from rl_games.algos_torch import torch_ext
 from rl_games.algos_torch.running_mean_std import RunningMeanStd
