@@ -355,6 +355,10 @@ class LeapHandRot(VecTaskRot):
         if "history_length" not in self.cfg["env"]:
             self.cfg["env"]["history_length"] = 3
 
+        if "goal_conditioned" not in self.cfg["env"]:
+            self.cfg["env"]["goal_conditioned"] = False
+            self.cfg["env"]["include_obj_target"] = True
+
         # Multiple rigid shapes correspond to a rigid body, the indices can be found using get_asset_rigid_body_shape_indices
         self.body_shape_indices = [
             (0, 17),

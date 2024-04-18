@@ -16,7 +16,7 @@ physics_engine: ${..physics_engine}
 on_evaluation: False
 
 # IsaacGymEnvs style domain randomization
-randomize: True
+randomize: False        # default: True
 randomization_params:
   frequency: 1200
   observations:
@@ -91,10 +91,10 @@ randomization_params:
 
 env:
   # debug and save
-  debug:
-    record:
-      duration: 20.0
-      suffix: "rotz_goal"
+  # debug:
+  #   record:
+  #     duration: 20.0
+  #     suffix: "rotz_goal"
   enableDebugVis: False
     
   # environment basic
@@ -118,7 +118,7 @@ env:
   include_obj_pose: False
   include_obj_target: True
 
-  episodeLength: 20      # default: 400
+  episodeLength: 400      # default: 400
   aggregateMode: 1
 
   controller:

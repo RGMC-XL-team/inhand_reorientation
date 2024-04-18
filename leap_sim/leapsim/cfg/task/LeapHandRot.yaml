@@ -16,7 +16,7 @@ physics_engine: ${..physics_engine}
 on_evaluation: False
 
 # IsaacGymEnvs style domain randomization
-randomize: True
+randomize: False          # default: True
 randomization_params:
   frequency: 1200
   observations:
@@ -97,7 +97,7 @@ env:
   envSpacing: 0.25
   phase_period: 2
   exec_lag: 1
-  include_obj_pose: true    # object pose
+  include_obj_pose: false    # default: true
 
   # goal condition
   goal_conditioned: False
@@ -136,11 +136,11 @@ env:
     workPenaltyScale: -1.0
 
   additional_rewards:
-    rotate_finite_diff: 2.50      # 1.25
-    object_pos_diff: -1.0         # -5.0
+    rotate_finite_diff: 1.25      # 1.25
+    object_pos_diff: -0.5         # -5.0
     object_fallen: -10 
 
-  override_object_init_z: 0.58    # 0.57 for normal cube (7.5cm)
+  override_object_init_z: 0.60    # 0.57 for normal cube (7.5cm)
   override_object_init_x: -0.05     # -0.03 for normal cube (7.5cm)
   override_object_init_y: 0.04
 

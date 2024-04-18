@@ -616,6 +616,8 @@ class VecTaskRot(Env):
         for actor, actor_properties in dr_params["actor_params"].items():
             # Loop over all envs as this part is not tensorised yet
             for env_id in env_ids:
+                if env_id % 500 == 0:
+                    print("env_id: ", env_id)
                 env = self.envs[env_id]
                 handle = self.gym.find_actor_handle(env, actor)
                 extern_sample = self.extern_actor_params[env_id]
