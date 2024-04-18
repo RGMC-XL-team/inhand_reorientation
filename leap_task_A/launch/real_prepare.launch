@@ -35,6 +35,11 @@
     <arg name="calibration_file" value="$(arg calibration_file)" />
   </include>
 
+  <!-- Tag TF to a pose topic -->
+
+  <node pkg="leap_task_A" name="tag_tf_to_topic" type="tag_tf_to_topic.py"
+    output="screen" />
+
   <!-- Leap Hand -->
 
   <include file="$(find leap_hardware)/launch/leap_bringup.launch">

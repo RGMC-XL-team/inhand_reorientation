@@ -2,8 +2,9 @@ import os
 
 import numpy as np
 import rospkg
+import rospy
 import yaml
-from leaphand_mujoco import Simulation
+from leaphand_real import LeapHandReal
 from scipy.spatial.transform import Rotation as sciR
 
 from leap_model_based.leaphand_pinocchio import LeapHandPinocchio
@@ -16,11 +17,13 @@ class LeapHandControl:
         self.b_use_ros = b_use_ros
         self.robot_model = robot_model
 
-        self.env = Simulation(robot_model=robot_model)
+        self.control_rate = 50
+
+        # self.env = Simulation(robot_model=robot_model)
+        self.env = LeapHandReal(control_rate=self.control_rate)
 
         # for leaphand
         self.hand_target_joint_pos = self.env.getHandJointPos().copy()
-        self.control_rate = 50
 
         if int(1.0 / self.env.timestep) % self.control_rate != 0:
             raise NameError("Simulation rate % control rate != 0")
@@ -160,6 +163,61 @@ class LeapHandControl:
         for i in range(int(1.0 / self.env.timestep)):
             self.env.step()
 
+    # --------------------------------------
+    def initialGraspingFixed(self):
+        self.updateCurrentHandJointPos()
+
+        object_pos = np.array([-0.02, 0.015, 0.12])
+
+        _, finger0_quat = self.getFingerGlobalPose("finger0", local_position=[0, 0, 0], option="real")
+        _, finger1_quat = self.getFingerGlobalPose("finger1", local_position=[0, 0, 0], option="real")
+        _, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0, 0, 0], option="real")
+
+        fingertip_radius = 0
+        finger0_grasp_offset = np.array([0.03 + fingertip_radius, -0.025, -0.0])
+        finger1_grasp_offset = np.array([0.03 + fingertip_radius, 0.025, 0.0])
+        thumb_grasp_offset = np.array([-0.03 - fingertip_radius, 0, 0])
+
+        finger0_target_pos = finger0_grasp_offset + object_pos
+        finger1_target_pos = finger1_grasp_offset + object_pos
+        thumb_target_pos = thumb_grasp_offset + object_pos
+
+        finger0_target_quat = finger0_quat.copy()
+        finger1_target_quat = finger1_quat.copy()
+        thumb_target_quat = thumb_quat.copy()
+
+        # 每个手指分别求的效率更高
+        finger0_res_joint_pos = self.robot_model.fingerIKSQP(
+            "finger0",
+            finger_target_pose=posQuat2Isometry3d(finger0_target_pos, finger0_target_quat),
+            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+            finger_joint_pos_init=self.getFingerJointPos("finger0", option="real"),
+            local_position=[0, 0, 0],
+        )
+        finger1_res_joint_pos = self.robot_model.fingerIKSQP(
+            "finger1",
+            finger_target_pose=posQuat2Isometry3d(finger1_target_pos, finger1_target_quat),
+            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+            finger_joint_pos_init=self.getFingerJointPos("finger1", option="real"),
+            local_position=[0, 0, 0],
+        )
+        thumb_res_joint_pos = self.robot_model.fingerIKSQP(
+            "thumb",
+            finger_target_pose=posQuat2Isometry3d(thumb_target_pos, thumb_target_quat),
+            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+            finger_joint_pos_init=self.getFingerJointPos("thumb", option="real"),
+            local_position=[0, 0, 0],
+        )
+
+        hand_target_joint_pos = np.zeros((16,))
+        hand_target_joint_pos[0:4] = finger0_res_joint_pos
+        hand_target_joint_pos[4:8] = finger1_res_joint_pos
+        hand_target_joint_pos[12:16] = thumb_res_joint_pos
+        self.moveHandToJointPos(target_joint_pos=hand_target_joint_pos, max_speed=np.deg2rad(90))
+
+        for i in range(int(1.0 / self.env.timestep)):
+            self.env.step()
+
     # # --------------------------------------
     # def moveObject(self,
     #                target_object_pos=None,
@@ -250,6 +308,7 @@ class LeapHandControl:
         finger0_pose_in_object = np.linalg.inv(object_pose) @ finger0_pose
         finger1_pose_in_object = np.linalg.inv(object_pose) @ finger1_pose
 
+        print("Start trajectory optimization ...")
         traj_hand_joint_pos = self.robot_model.relaxedTrajectoryOptimization2(
             T=5,
             delta_t=0.5,
@@ -268,12 +327,13 @@ class LeapHandControl:
             self.moveHandToJointPos(target_joint_pos=hand_joint_pos, max_speed=np.deg2rad(10))
             print(f"Reached waypoint {i}.")
 
+        # wait for one second
+        for i in range(int(1.0 / self.env.timestep)):
+            self.env.step()
+
         object_pos, _ = self.env.getQRCodePose()
         control_err = np.linalg.norm(object_pos - target_object_pos)
         print("control_err: ", control_err)
-
-        for i in range(int(1.0 / self.env.timestep)):
-            self.env.step()
 
         return control_err
 
@@ -282,7 +342,6 @@ class LeapHandControl:
 def test1():
     rospack = rospkg.RosPack()
     urdf_path = os.path.join(rospack.get_path("my_robot_description"), "urdf/leaphand.urdf")
-    # robot_model = LeapHandPybullet(urdf_path=urdf_path, b_use_gui=False, b_self_collision=False)
     robot_model = LeapHandPinocchio(urdf_path=urdf_path)
 
     task_cfg_path = os.path.join(rospack.get_path("leap_task_A"), "config/taskA.yaml")
@@ -291,7 +350,7 @@ def test1():
         print(task_cfg)
     target_waypoints = task_cfg["waypoints"]
 
-    ctrl = LeapHandControl(robot_model=robot_model)
+    ctrl = LeapHandControl(robot_model=robot_model, b_use_ros=False)
 
     for i in range(1):
         ctrl.moveHandToInitialConfig()
@@ -306,6 +365,42 @@ def test1():
         ctrl.env.physics.reset()
 
 
+# --------------------------------------
+def test2():
+    rospy.init_node("leaphand_real")
+
+    rospack = rospkg.RosPack()
+    urdf_path = os.path.join(rospack.get_path("my_robot_description"), "urdf/leaphand.urdf")
+    robot_model = LeapHandPinocchio(urdf_path=urdf_path)
+
+    task_cfg_path = os.path.join(rospack.get_path("leap_task_A"), "config/taskA.yaml")
+    with open(task_cfg_path) as stream:
+        task_cfg = yaml.safe_load(stream)
+        print(task_cfg)
+    target_waypoints = task_cfg["waypoints"]
+
+    ctrl = LeapHandControl(robot_model=robot_model, b_use_ros=True)
+
+    ctrl.moveHandToInitialConfig()
+    ctrl.initialGraspingFixed()
+
+    print("Please press 'Enter' to continue ...")
+    input()
+
+    object_pos, object_quat = ctrl.env.getQRCodePose()
+    for waypoint_idx, target_waypoint in enumerate(target_waypoints):
+        target_pos = np.array([target_waypoint["x"], target_waypoint["y"], target_waypoint["z"]])
+        target_object_pos = object_pos + target_pos
+
+        print(f"waypoint_idx: {waypoint_idx}")
+
+        control_err = ctrl.moveObject(target_object_pos=target_object_pos, target_object_quat=object_quat)
+
+        # print("Please press 'Enter' to continue ...")
+        # input()
+
+
 # ----------------------------------------------
 if __name__ == "__main__":
-    test1()
+    # test1()
+    test2()
