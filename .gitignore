@@ -13,6 +13,7 @@ azure_kinect_notes/*
 cache/
 runs/
 backups/
+wandb/
 
 
 # Created by https://www.toptal.com/developers/gitignore/api/ros,linux,python,c++,macos,windows,git,visualstudiocode

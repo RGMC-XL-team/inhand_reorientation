@@ -16,7 +16,7 @@ physics_engine: ${..physics_engine}
 on_evaluation: False
 
 # IsaacGymEnvs style domain randomization
-randomize: True
+randomize: False
 randomization_params:
   frequency: 1200
   observations:

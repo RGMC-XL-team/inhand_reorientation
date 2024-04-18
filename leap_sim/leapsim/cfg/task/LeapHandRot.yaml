@@ -16,22 +16,22 @@ physics_engine: ${..physics_engine}
 on_evaluation: False
 
 # IsaacGymEnvs style domain randomization
-randomize: True
+randomize: False # default: True
 randomization_params:
   frequency: 1200
   observations:
-    range: [ 0, .002 ]
-    range_correlated: [ 0, .001 ]
+    range: [0, .002]
+    range_correlated: [0, .001]
     operation: "additive"
     distribution: "gaussian"
   actions:
-    range: [ 0., .05 ]
-    range_correlated: [ 0, .015 ]
+    range: [0., .05]
+    range_correlated: [0, .015]
     operation: "additive"
     distribution: "gaussian"
   sim_params:
     gravity:
-      range: [ 0, 0.4 ]
+      range: [0, 0.4]
       operation: "additive"
       distribution: "gaussian"
   actor_params:
@@ -39,29 +39,29 @@ randomization_params:
       # color: True
       dof_properties:
         damping:
-          range: [ 0.8, 1.2 ]
+          range: [0.8, 1.2]
           operation: "scaling"
           distribution: "uniform"
         stiffness:
-          range: [ 0.8, 1.2 ]
+          range: [0.8, 1.2]
           operation: "scaling"
           distribution: "uniform"
       rigid_body_properties:
         mass:
-          range: [ 0.8, 1.2 ]
+          range: [0.8, 1.2]
           operation: "scaling"
           distribution: "uniform"
           setup_only: True
       rigid_shape_properties:
         friction:
           num_buckets: 100
-          range: [ 0.3, 2.0 ]
+          range: [0.3, 2.0]
           operation: "scaling"
           distribution: "uniform"
           same_for_all: True
         restitution:
           num_buckets: 100
-          range: [ 0.0, 2 ]
+          range: [0.0, 2]
           operation: "scaling"
           distribution: "uniform"
     object:
@@ -72,20 +72,20 @@ randomization_params:
       #   setup_only: True
       rigid_body_properties:
         mass:
-          range: [ 0.3, 1.8 ]
+          range: [0.3, 1.8]
           operation: "scaling"
           distribution: "uniform"
           setup_only: True
       rigid_shape_properties:
         friction:
           num_buckets: 100
-          range: [ 0.3, 2.0 ]
+          range: [0.3, 2.0]
           operation: "scaling"
           distribution: "uniform"
           same_for_all: True
         restitution:
           num_buckets: 100
-          range: [ 0.0, 2 ]
+          range: [0.0, 2]
           operation: "scaling"
           distribution: "uniform"
 
@@ -97,7 +97,7 @@ env:
   envSpacing: 0.25
   phase_period: 2
   exec_lag: 1
-  include_obj_pose: false    # object pose
+  include_obj_pose: false # default: true
 
   # goal condition
   goal_conditioned: False
@@ -108,7 +108,7 @@ env:
 
   controller:
     torque_control: False
-    controlFrequencyInv: 6  # 20Hz
+    controlFrequencyInv: 6 # 20Hz
     pgain: 3
     dgain: 0.1
 
@@ -117,7 +117,7 @@ env:
   clipObservations: 5.0
   clipActions: 1.0
   reset_height_threshold: 0.4
-  grasp_cache_name: 'leap_hand_in_palm_cube' # This must be supplied via command line
+  grasp_cache_name: "leap_hand_in_palm_cube" # This must be supplied via command line
   grasp_cache_len: 1024
 
   # Random forces applied to the object
@@ -136,12 +136,12 @@ env:
     workPenaltyScale: -1.0
 
   additional_rewards:
-    rotate_finite_diff: 2.50      # 1.25
-    object_pos_diff: -1.0         # -5.0
-    object_fallen: -10 
+    rotate_finite_diff: 1.25 # 1.25
+    object_pos_diff: -0.5 # -5.0
+    object_fallen: -10
 
-  override_object_init_z: 0.58    # 0.57 for normal cube (7.5cm)
-  override_object_init_x: -0.05     # -0.03 for normal cube (7.5cm)
+  override_object_init_z: 0.60 # 0.57 for normal cube (7.5cm)
+  override_object_init_x: -0.05 # -0.03 for normal cube (7.5cm)
   override_object_init_y: 0.04
 
   canonical_pose:
@@ -157,7 +157,7 @@ env:
     - 0.0290
     - 1.6039
     - 0.1227
-    - -0.1084 
+    - -0.1084
     - 0.9652
     - 1.7317
     - 0.1071
@@ -179,9 +179,9 @@ env:
     randomizeScale: True
     # if scale_list_init is True, randomizeScaleLower and randomizeScaleUpper is not useful
     scaleListInit: True
-    randomizeScaleList: [0.95, 0.9, 1.0, 1.05, 1.1]     
-    randomizeScaleLower: 0.75  # only useful when not scaleListInit
-    randomizeScaleUpper: 0.8  # only useful when not scaleListInit
+    randomizeScaleList: [0.95, 0.9, 1.0, 1.05, 1.1]
+    randomizeScaleLower: 0.75 # only useful when not scaleListInit
+    randomizeScaleUpper: 0.8 # only useful when not scaleListInit
     randomizePDGains: True
     randomizePGainLower: 2.9
     randomizePGainUpper: 3.1
@@ -203,14 +203,14 @@ env:
     enableObjFriction: True
 
   object:
-    type: 'cube_small' # can be block, egg or pen
+    type: "cube_small" # can be block, egg or pen
     sampleProb: [1.0]
 
   sim_to_real_indices: [1, 0, 2, 3, 9, 8, 10, 11, 13, 12, 14, 15, 4, 5, 6, 7]
   real_to_sim_indices: [1, 0, 2, 3, 12, 13, 14, 15, 5, 4, 6, 7, 9, 8, 10, 11]
 
   asset:
-    handAsset: 'assets/leap_hand/leaphand_high_palm.urdf'
+    handAsset: "assets/leap_hand/leaphand_high_palm.urdf"
     # handAsset: 'assets/leap_hand/robot.urdf'
     # handAsset: 'assets/leap/leap.urdf'
     # handAsset: 'assets/leap_hand/wider_hand_export/robot.urdf'
@@ -222,7 +222,7 @@ env:
 sim:
   dt: 0.0083333 # 120 Hz
   substeps: 1
-  up_axis: 'z'
+  up_axis: "z"
   use_gpu_pipeline: ${eq:${...pipeline},'gpu'}
   gravity: [0.0, 0.0, -9.81]
   physx:
