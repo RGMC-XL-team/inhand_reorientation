@@ -6,6 +6,7 @@
 
   <arg name="free_move" default="true" />
   <arg name="enable_visualization" default="true" />
+  <arg name="use_rviz" default="true" />
 
   <!-- Leap Hand hardware interface -->
   <node pkg="leap_hardware" name="leaphand_node" type="leaphand_node.py" output="screen">
@@ -22,11 +23,13 @@
       This separate joint state publisher is deprecated,
       because multiple hardware queries are not supported
     -->
-    <!-- <node pkg="leap_hardware" name="leaphand_publisher" type="leap_joint_state_publisher.py" output="screen"/> -->
+    <!-- <node pkg="leap_hardware" name="leaphand_publisher" type="leap_joint_state_publisher.py"
+    output="screen"/> -->
 
     <!-- Leap Hand visualization -->
-    <include file = "$(find my_robot_description)/launch/view_leaphand.launch">
-      <arg name="use_slider" value="false"/>
+    <include file="$(find my_robot_description)/launch/view_leaphand.launch">
+      <arg name="use_slider" value="false" />
+      <arg name="use_rviz" value="$(arg use_rviz)" />
     </include>
   </group>
 

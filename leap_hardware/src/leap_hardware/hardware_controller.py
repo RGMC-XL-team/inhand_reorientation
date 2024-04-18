@@ -10,12 +10,15 @@
 # https://github.com/HaozhiQi/hora/blob/main/hora/algo/deploy/robots/leap.py
 # --------------------------------------------------------
 
+import os
+
 import numpy as np
+import rospkg
 import rospy
-from leap_model_based.leaphand_pinocchio import LeapHandPinocchio
 from sensor_msgs.msg import JointState
 
 from leap_hardware.srv import *
+from leap_model_based.leaphand_pinocchio import LeapHandPinocchio
 
 
 class LeapHand:
@@ -55,9 +58,9 @@ class LeapHand:
         self.leap_jstate_pub = rospy.Publisher("/joint_states", JointState, queue_size=1)
 
         # pinocchio FK model
-        # TODO(yongpeng): set this as ROS param
-        LEAP_HAND_URDF = "/home/yongpeng/competition/RGMC_XL/leap_ws/src/my_robot_description/urdf/leaphand.urdf"
-        # self.leap_kin = LeapHandPinocchio(LEAP_HAND_URDF)
+        rospack = rospkg.RosPack()
+        LEAP_HAND_URDF = os.path.join(rospack.get_path("my_robot_description"), "urdf/leaphand.urdf")
+        self.leap_kin = LeapHandPinocchio(LEAP_HAND_URDF)
 
         self.current_joint_positions = np.zeros(
             16,

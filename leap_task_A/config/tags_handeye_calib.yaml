@@ -19,7 +19,7 @@
 #     {id: ID, size: SIZE, name: NAME},
 #     ...
 #   ]
-standalone_tags: [{ id: 38, size: 0.02, name: AprilTag }]
+standalone_tags: [{ id: 0, size: 0.08, name: AprilTag }]
 # ## Tag bundle definitions
 # ### Remarks
 #

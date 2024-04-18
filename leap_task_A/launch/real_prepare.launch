@@ -1,10 +1,11 @@
 <launch>
 
   <!-- the camera -->
+
   <include file="$(find azure_kinect_ros_driver)/launch/kinect_rgbd.launch">
-    <arg name="depth_enabled" value="false" />
-    <!-- <arg name="depth_mode" value="NFOV_UNBINNED" />  -->
-    <arg name="fps" value="30" />
+    <arg name="depth_enabled" value="true" />
+    <arg name="depth_mode" value="WFOV_UNBINNED" />
+    <arg name="fps" value="15" />
     <arg name="color_resolution" value="1536P" />
     <!-- <arg name="color_control_mode_auto" value="false" /> -->
     <!-- <arg name="color_exposure_usec" value="20000" /> -->
@@ -18,6 +19,36 @@
   </include>
 
   <!-- the Apriltap detection -->
+
   <include file="$(find leap_task_A)/launch/tag_detect.launch"></include>
+
+  <!-- publish the transform between camera and hand -->
+
+  <arg name="tracking_base_frame" default="camera_base" />
+  <arg name="calibration_file"
+    default="/home/robo/.ros/easy_handeye/leap_kinect_calib_eye_on_base.yaml" />
+
+  <include file="$(find easy_handeye)/launch/publish.launch">
+    <arg name="eye_on_hand" value="false" />
+    <arg name="namespace_prefix" value="leap_kinect_calib" />
+    <arg name="tracking_base_frame" value="$(arg tracking_base_frame)" />
+    <arg name="calibration_file" value="$(arg calibration_file)" />
+  </include>
+
+  <!-- Leap Hand -->
+
+  <include file="$(find leap_hardware)/launch/leap_bringup.launch">
+    <arg name="free_move" value="false" />
+    <arg name="enable_visualization" value="true" />
+    <arg name="use_rviz" value="false" />
+  </include>
+
+  <!-- <node pkg="leap_hardware" name="leaphand_publisher" type="leap_joint_state_publisher.py"
+    output="screen" /> -->
+
+  <!-- rviz -->
+
+  <node name="rviz" pkg="rviz" type="rviz"
+    args="-d $(find leap_task_A)/rviz/taskA.rviz" />
 
 </launch>

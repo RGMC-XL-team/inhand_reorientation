@@ -22,7 +22,7 @@ Task A is currently using the Azure Kinect DK for perception. To install the dep
 1. 安装easy_handeye
 ```
 git clone https://github.com/IFL-CAMP/easy_handeye.git
-cd ./easy_handeye
+cd WORKSPACE_PATH
 rosdep install -iyr --from-paths src
 ```
 
@@ -37,3 +37,9 @@ catkin_make_isolated
 
 ### Conda
 The name of the conda env on the Alienware Laptop is ```RGMC24```.
+
+```bash
+# for task A
+pip install mujoco
+pip install git+https://github.com/google-deepmind/dm_control.git # install the latest dm_control
+```

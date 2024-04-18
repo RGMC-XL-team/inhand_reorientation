@@ -1,0 +1,311 @@
+import os
+
+import numpy as np
+import rospkg
+import yaml
+from leaphand_mujoco import Simulation
+from scipy.spatial.transform import Rotation as sciR
+
+from leap_model_based.leaphand_pinocchio import LeapHandPinocchio
+from leap_utils.mingrui.utils_calc import *
+
+
+# -----------------------------------------------------------
+class LeapHandControl:
+    def __init__(self, robot_model, b_use_ros=False):
+        self.b_use_ros = b_use_ros
+        self.robot_model = robot_model
+
+        self.env = Simulation(robot_model=robot_model)
+
+        # for leaphand
+        self.hand_target_joint_pos = self.env.getHandJointPos().copy()
+        self.control_rate = 50
+
+        if int(1.0 / self.env.timestep) % self.control_rate != 0:
+            raise NameError("Simulation rate % control rate != 0")
+
+    # --------------------------------------
+    def updateCurrentHandJointPos(self):
+        self.hand_curr_joint_pos = self.env.getHandJointPos().copy()
+
+    # --------------------------------------
+    def getArmJointPos(self):
+        return np.asarray([])
+
+    # --------------------------------------
+    def getFingerJointPos(self, finger_name, option="target"):
+        if option == "real":
+            finger_joint_pos = self.hand_curr_joint_pos[self.robot_model.finger_joints_id_in_hand[finger_name]]
+        elif option == "target":
+            finger_joint_pos = self.hand_target_joint_pos[self.robot_model.finger_joints_id_in_hand[finger_name]]
+        else:
+            raise NameError("Invalid option.")
+
+        return finger_joint_pos
+
+    # --------------------------------------
+    def getFingerLocalPose(self, finger_name, local_position=None, option="target"):
+        finger_joint_pos = self.getFingerJointPos(finger_name, option)
+        finger_tcp_pos, finger_tcp_quat = self.robot_model.getFingerTcpLocalPose(
+            finger_name, finger_joint_pos=finger_joint_pos, local_position=local_position
+        )
+        return finger_tcp_pos, finger_tcp_quat
+
+    # --------------------------------------
+    def getFingerGlobalPose(self, finger_name, local_position=None, option="target"):
+        finger_tcp_pos, finger_tcp_quat = self.robot_model.getTcpGlobalPose(
+            finger_name, self.getFingerJointPos(finger_name, option), local_position=local_position
+        )
+        # finger_tcp_pos, finger_tcp_quat = self.robot_model.getTcpGlobalPose(finger_name,
+        #                                                         finger_joint_pos=self.getFingerJointPos(finger_name, option),
+        #                                                         local_position=local_position)
+        return finger_tcp_pos, finger_tcp_quat
+
+    # --------------------------------------
+    def clipHandJointPosInBound(self, joint_pos):
+        joints_lb = np.array(self.robot_model.joint_id_to_lower_limits)[self.robot_model.part_joints_id["hand"]]
+        joints_ub = np.array(self.robot_model.joint_id_to_upper_limits)[self.robot_model.part_joints_id["hand"]]
+        joint_pos = np.clip(joint_pos, joints_lb, joints_ub)
+        return joint_pos
+
+    # --------------------------------------
+    """
+        modify the self.hand_target_joint_pos
+    """
+
+    def moveHandToJointPos(self, target_joint_pos, max_speed=np.deg2rad(45), option="target"):
+        if option == "real":
+            self.updateCurrentHandJointPos()
+            current_joint_pos = self.hand_curr_joint_pos.copy()
+        elif option == "target":
+            current_joint_pos = self.hand_target_joint_pos.copy()
+        else:
+            raise NameError("Invalid option.")
+
+        target_joint_pos = np.array(target_joint_pos)
+        max_step_size = max_speed * (1.0 / self.control_rate)
+
+        n_steps = np.max(np.abs(target_joint_pos - current_joint_pos) / max_step_size)
+        n_steps = np.ceil(n_steps)
+
+        for i in range(1, int(n_steps) + 1):
+            t = float(i) / n_steps
+            temp_target_joint_pos = current_joint_pos * (1 - t) + target_joint_pos * t
+            self.env.ctrlHandJointPos(temp_target_joint_pos)
+
+            for i in range(int(1.0 / self.control_rate / self.env.timestep)):
+                self.env.step()
+
+        self.hand_target_joint_pos = target_joint_pos
+
+    # --------------------------------------
+    def moveHandToInitialConfig(self):
+        target_hand_joint_pos = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, np.pi / 2, 0, 0, 0])
+        self.moveHandToJointPos(target_hand_joint_pos, max_speed=np.deg2rad(90), option="real")
+
+    # --------------------------------------
+    def initialGrasping(self):
+        self.updateCurrentHandJointPos()
+
+        object_pos, object_quat = self.env.getObjectPose()
+        object_rot_mat = sciR.from_quat(object_quat).as_matrix()
+
+        finger0_pos, finger0_quat = self.getFingerGlobalPose("finger0", local_position=[0, 0, 0], option="real")
+        finger1_pos, finger1_quat = self.getFingerGlobalPose("finger1", local_position=[0, 0, 0], option="real")
+        thumb_pos, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0, 0, 0], option="real")
+
+        fingertip_radius = 0.008
+        finger0_grasp_offset = np.array([0.03 + fingertip_radius, -0.025, -0.0])
+        finger1_grasp_offset = np.array([0.03 + fingertip_radius, 0.025, 0.0])
+        thumb_grasp_offset = np.array([-0.03 - fingertip_radius, 0, 0])
+
+        finger0_target_pos = object_rot_mat @ finger0_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+        finger1_target_pos = object_rot_mat @ finger1_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+        thumb_target_pos = object_rot_mat @ thumb_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+
+        finger0_target_quat = finger0_quat.copy()
+        finger1_target_quat = finger1_quat.copy()
+        thumb_target_quat = thumb_quat.copy()
+
+        # 每个手指分别求的效率更高
+        finger0_res_joint_pos = self.robot_model.fingerIKSQP(
+            "finger0",
+            finger_target_pose=posQuat2Isometry3d(finger0_target_pos, finger0_target_quat),
+            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+            finger_joint_pos_init=self.getFingerJointPos("finger0", option="real"),
+            local_position=[0, 0, 0],
+        )
+        finger1_res_joint_pos = self.robot_model.fingerIKSQP(
+            "finger1",
+            finger_target_pose=posQuat2Isometry3d(finger1_target_pos, finger1_target_quat),
+            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+            finger_joint_pos_init=self.getFingerJointPos("finger1", option="real"),
+            local_position=[0, 0, 0],
+        )
+        thumb_res_joint_pos = self.robot_model.fingerIKSQP(
+            "thumb",
+            finger_target_pose=posQuat2Isometry3d(thumb_target_pos, thumb_target_quat),
+            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+            finger_joint_pos_init=self.getFingerJointPos("thumb", option="real"),
+            local_position=[0, 0, 0],
+        )
+
+        hand_target_joint_pos = np.zeros((16,))
+        hand_target_joint_pos[0:4] = finger0_res_joint_pos
+        hand_target_joint_pos[4:8] = finger1_res_joint_pos
+        hand_target_joint_pos[12:16] = thumb_res_joint_pos
+        self.moveHandToJointPos(target_joint_pos=hand_target_joint_pos, max_speed=np.deg2rad(90))
+
+        for i in range(int(1.0 / self.env.timestep)):
+            self.env.step()
+
+    # # --------------------------------------
+    # def moveObject(self,
+    #                target_object_pos=None,
+    #                target_object_quat=None,
+    #                target_rel_movement=None):
+
+    #     if target_rel_movement is not None:
+    #         object_pos, object_quat = self.env.getQRCodePose()
+    #         target_object_pos = object_pos + target_rel_movement
+    #         target_object_quat = object_quat.copy()
+    #     if target_object_pos is not None:
+    #         target_object_pos = target_object_pos.copy()
+    #         target_object_quat = target_object_quat.copy()
+
+    #     self.env.visDesiredPos(target_object_pos)
+    #     self.env.step()
+
+    #     self.updateCurrentHandJointPos()
+
+    #     object_pos, object_quat = self.env.getQRCodePose()
+    #     object_pose = posQuat2Isometry3d(object_pos, object_quat)
+
+    #     finger0_pos, finger0_quat = self.getFingerGlobalPose("finger0", local_position=[0,0,0], option="target")
+    #     finger0_pose = posQuat2Isometry3d(finger0_pos, finger0_quat)
+    #     finger1_pos, finger1_quat = self.getFingerGlobalPose("finger1", local_position=[0,0,0], option="target")
+    #     finger1_pose = posQuat2Isometry3d(finger1_pos, finger1_quat)
+    #     thumb_pos, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0,0,0], option="target")
+    #     thumb_pose = posQuat2Isometry3d(thumb_pos, thumb_quat)
+
+    #     object_pose_in_thumb = np.linalg.inv(thumb_pose) @ object_pose
+    #     finger0_pose_in_thumb = np.linalg.inv(thumb_pose) @ finger0_pose
+    #     finger1_pose_in_thumb = np.linalg.inv(thumb_pose) @ finger1_pose
+
+    #     target_finger0_rel_pose = finger0_pose_in_thumb.copy()
+    #     target_finger1_rel_pose = finger1_pose_in_thumb.copy()
+
+    #     traj_hand_joint_pos = self.robot_model.relaxedTrajectoryOptimization(
+    #                                     T=5,
+    #                                     delta_t=0.5,
+    #                                     object_target_pose=posQuat2Isometry3d(target_object_pos, target_object_quat),
+    #                                     object_pose_in_thumb=object_pose_in_thumb,
+    #                                     finger0_target_rel_pose=target_finger0_rel_pose,
+    #                                     finger1_target_rel_pose=target_finger1_rel_pose,
+    #                                     weights_object_pose=[5, 5, 5, 0.00, 0.01, 0.01],
+    #                                     weights_rel_pose=[10, 10, 10, 0.0, 0.0, 0.0],
+    #                                     weights_joint_vel=1e-4,
+    #                                     hand_joint_pos_init=self.hand_curr_joint_pos.copy())
+
+    #     for i, hand_joint_pos in enumerate(traj_hand_joint_pos):
+    #         self.moveHandToJointPos(target_joint_pos=hand_joint_pos, max_speed=np.deg2rad(10))
+    #         print(f"Reached waypoint {i}.")
+
+    #     for i in range(int(1.0/self.env.timestep)):
+    #         self.env.step()
+
+    #     object_pos, _ = self.env.getQRCodePose()
+    #     control_err = np.linalg.norm(object_pos - target_object_pos)
+    #     print("control_err: ", control_err)
+
+    #     return control_err
+
+    # --------------------------------------
+    def moveObject(self, target_object_pos=None, target_object_quat=None, target_rel_movement=None):
+        if target_rel_movement is not None:
+            object_pos, object_quat = self.env.getQRCodePose()
+            target_object_pos = object_pos + target_rel_movement
+            target_object_quat = object_quat.copy()
+        if target_object_pos is not None:
+            target_object_pos = target_object_pos.copy()
+            target_object_quat = target_object_quat.copy()
+
+        self.env.visDesiredPos(target_object_pos)
+        self.env.step()
+
+        self.updateCurrentHandJointPos()
+
+        object_pos, object_quat = self.env.getQRCodePose()
+        object_pose = posQuat2Isometry3d(object_pos, object_quat)
+
+        finger0_pos, finger0_quat = self.getFingerGlobalPose("finger0", local_position=[0, 0, 0], option="target")
+        finger0_pose = posQuat2Isometry3d(finger0_pos, finger0_quat)
+        finger1_pos, finger1_quat = self.getFingerGlobalPose("finger1", local_position=[0, 0, 0], option="target")
+        finger1_pose = posQuat2Isometry3d(finger1_pos, finger1_quat)
+        thumb_pos, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0, 0, 0], option="target")
+        thumb_pose = posQuat2Isometry3d(thumb_pos, thumb_quat)
+
+        thumb_pose_in_object = np.linalg.inv(object_pose) @ thumb_pose
+        finger0_pose_in_object = np.linalg.inv(object_pose) @ finger0_pose
+        finger1_pose_in_object = np.linalg.inv(object_pose) @ finger1_pose
+
+        traj_hand_joint_pos = self.robot_model.relaxedTrajectoryOptimization2(
+            T=5,
+            delta_t=0.5,
+            object_target_pose=posQuat2Isometry3d(target_object_pos, target_object_quat),
+            thumb_target_rel_pose=thumb_pose_in_object,
+            finger0_target_rel_pose=finger0_pose_in_object,
+            finger1_target_rel_pose=finger1_pose_in_object,
+            weights_object_pose=[10, 10, 10, 0.0, 0.00, 0.0],
+            weights_rel_pose=[10, 10, 10, 0.0, 0.0, 0.0],
+            weights_joint_vel=1e-4,
+            object_pose_init=object_pose,
+            hand_joint_pos_init=self.hand_curr_joint_pos.copy(),
+        )
+
+        for i, hand_joint_pos in enumerate(traj_hand_joint_pos):
+            self.moveHandToJointPos(target_joint_pos=hand_joint_pos, max_speed=np.deg2rad(10))
+            print(f"Reached waypoint {i}.")
+
+        object_pos, _ = self.env.getQRCodePose()
+        control_err = np.linalg.norm(object_pos - target_object_pos)
+        print("control_err: ", control_err)
+
+        for i in range(int(1.0 / self.env.timestep)):
+            self.env.step()
+
+        return control_err
+
+
+# --------------------------------------
+def test1():
+    rospack = rospkg.RosPack()
+    urdf_path = os.path.join(rospack.get_path("my_robot_description"), "urdf/leaphand.urdf")
+    # robot_model = LeapHandPybullet(urdf_path=urdf_path, b_use_gui=False, b_self_collision=False)
+    robot_model = LeapHandPinocchio(urdf_path=urdf_path)
+
+    task_cfg_path = os.path.join(rospack.get_path("leap_task_A"), "config/taskA.yaml")
+    with open(task_cfg_path) as stream:
+        task_cfg = yaml.safe_load(stream)
+        print(task_cfg)
+    target_waypoints = task_cfg["waypoints"]
+
+    ctrl = LeapHandControl(robot_model=robot_model)
+
+    for i in range(1):
+        ctrl.moveHandToInitialConfig()
+        ctrl.initialGrasping()
+        object_pos, object_quat = ctrl.env.getQRCodePose()
+
+        for target_waypoint in target_waypoints:
+            target_pos = np.array([target_waypoint["x"], target_waypoint["y"], target_waypoint["z"]])
+            target_object_pos = object_pos + target_pos
+            control_err = ctrl.moveObject(target_object_pos=target_object_pos, target_object_quat=object_quat)
+
+        ctrl.env.physics.reset()
+
+
+# ----------------------------------------------
+if __name__ == "__main__":
+    test1()

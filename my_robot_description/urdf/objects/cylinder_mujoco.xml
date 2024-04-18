@@ -1,5 +1,6 @@
 <mujoco model="cylinder_mujoco">
 
-    <include file="/home/mingrui/Mingrui/research/project_RGMC_24/RGMC_XL/leap_ws/src/my_robot_description/urdf/objects/cylinder.xml" />
+    <include
+        file="/home/robo/RGMC2024/catkin_ws/src/leap_XL/my_robot_description/urdf/objects/cylinder.xml" />
 
 </mujoco>

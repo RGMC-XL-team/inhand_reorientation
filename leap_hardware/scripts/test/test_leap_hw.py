@@ -4,6 +4,7 @@ import os
 
 import matplotlib.pyplot as plt
 import numpy as np
+import rospkg
 import rospy
 import tf2_ros
 from geometry_msgs.msg import Point
@@ -42,10 +43,12 @@ def generate_test_joint_trajectory(type="sine"):
 
         return t_knots_sec, y_knots_all_dof
 
-    def generate_recorded_trajectory(debug_dir="/home/yongpeng/competition/RGMC_XL/leap_ws/src/leap_sim/leapsim/debug"):
+    def generate_recorded_trajectory(debug_dir=""):
         """
         load and replay the recorded trajectory
         """
+        rospack = rospkg.RosPack()
+        debug_dir = os.path.join(rospack.get_path("leap_sim"), "leapsim/debug")
         joints_sim = np.load(os.path.join(debug_dir, "joints_sim_rotz_goal.npy")).reshape(-1, 16)
         targets_sim = np.load(os.path.join(debug_dir, "targets_sim_rotz_goal.npy"))
 
