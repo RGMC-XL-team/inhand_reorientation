@@ -144,6 +144,7 @@ class LeapHandFlip(VecTaskRot):
         self.reset_goal_buf = self.reset_buf.clone()
 
         self.successes = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self.flip_direction = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
 
         self.previous_object_rot = torch.zeros((self.num_envs, 4), device=self.device)
         self.actions = torch.zeros((self.num_envs, self.num_actions), device=self.device, dtype=torch.float)
@@ -369,7 +370,7 @@ class LeapHandFlip(VecTaskRot):
 
         if "goal_conditioned" not in self.cfg["env"]:
             self.cfg["env"]["goal_conditioned"] = False
-            self.cfg["env"]["include_obj_target"] = True
+            self.cfg["env"]["include_obj_target"] = False
 
         # Multiple rigid shapes correspond to a rigid body, the indices can be found using get_asset_rigid_body_shape_indices
         self.body_shape_indices = [
@@ -396,7 +397,7 @@ class LeapHandFlip(VecTaskRot):
         if self.cfg["env"]["include_obj_pose"]:
             self.cfg["env"]["numObservations"] += 7 * self.cfg["env"]["history_length"]
         if self.cfg["env"]["include_obj_target"]:
-            self.cfg["env"]["numObservations"] += 7 * self.cfg["env"]["history_length"]
+            self.cfg["env"]["numObservations"] += 8 * self.cfg["env"]["history_length"]
 
     def _create_envs(self, num_envs, spacing, num_per_row):
         self._create_ground_plane()
@@ -618,6 +619,7 @@ class LeapHandFlip(VecTaskRot):
                 rand_goal_rot_pi
                 * torch_rand_float(0.9 * np.pi / 2, 1.1 * np.pi / 2, (len(env_ids), 1), device=self.device).squeeze()
             )
+            self.flip_direction[env_ids] = 2 * rand_bool.float() - 1
 
             # FLIPPING cases
             if self.flip_axis == "y":
@@ -889,7 +891,8 @@ class LeapHandFlip(VecTaskRot):
             )
 
         if self.cfg["env"]["include_obj_target"]:
-            cur_obs_buf = torch.cat([cur_obs_buf, self.goal_pos.unsqueeze(1), self.goal_rot.unsqueeze(1)], dim=-1)
+            quat_diff = quat_mul(self.object_rot, quat_conjugate(self.goal_rot))
+            cur_obs_buf = torch.cat([cur_obs_buf, self.goal_rot.unsqueeze(1), quat_diff.unsqueeze(1)], dim=-1)
 
         if self.cfg["env"]["include_obj_scales"]:
             cur_obs_buf = torch.cat(
@@ -979,6 +982,13 @@ class LeapHandFlip(VecTaskRot):
         reward_terms = res[8]
         timeout_envs = res[9]
 
+        # compute additional rewards
+        if "additional_rewards" in self.cfg["env"]:
+            for reward_name, reward_scale in self.cfg["env"]["additional_rewards"].items():
+                reward_value = eval(f"self.reward_{reward_name}()") * reward_scale
+                self.extras[f"reward_{reward_name}"] = reward_value.mean()
+                self.rew_buf += reward_value
+
         # compute consecutive successes
         # self.consecutive_successes = self.consecutive_successes + self.successes
         # max_consecutive_successes_reached = (self.consecutive_successes >= self.max_consecutive_successes)
@@ -997,6 +1007,8 @@ class LeapHandFlip(VecTaskRot):
         # self.extras['consecutive_success'] = self.consecutive_successes.detach().to(self.rl_device).flatten()
         self.extras["abs_rot_dist"] = abs_rot_dist.detach().to(self.rl_device)
         self.extras["abs_pos_dist"] = abs_pos_dict.detach().to(self.rl_device)
+
+        self.extras["yaw_finite_diff"] = (self.object_angvel_finite_diff[:, 1] * self.flip_direction).mean()
         self.extras["TimeLimit.truncated"] = timeout_envs.detach().to(self.rl_device)
         for reward_key, reward_val in reward_terms.items():
             if reward_key == "object_fallen":
@@ -1369,15 +1381,21 @@ class LeapHandFlip(VecTaskRot):
         object_start_pose.p.x = leap_hand_start_pose.p.x
         pose_dx, pose_dy, pose_dz = -0.01, -0.04, 0.15
 
-        if "override_object_init_x" in self.cfg["env"]:
-            pose_dx = self.cfg["env"]["override_object_init_x"]
+        # if "override_object_init_x" in self.cfg["env"]:
+        if "override_dist" in self.cfg["env"]:
+            pose_dx = self.cfg["env"]["override_dist"]["override_object_init_x"]
 
-        if "override_object_init_y" in self.cfg["env"]:
-            pose_dy = self.cfg["env"]["override_object_init_y"]
+        # if "override_object_init_y" in self.cfg["env"]:
+        if "override_dist" in self.cfg["env"]:
+            pose_dy = self.cfg["env"]["override_dist"]["override_object_init_y"]
+
+        if "override_dist" in self.cfg["env"]:
+            object_start_pose.p.z = self.cfg["env"]["override_dist"]["override_object_init_z"]
+        else:
+            object_start_pose.p.z = leap_hand_start_pose.p.z + pose_dz
 
         object_start_pose.p.x = leap_hand_start_pose.p.x + pose_dx
         object_start_pose.p.y = leap_hand_start_pose.p.y + pose_dy
-        object_start_pose.p.z = leap_hand_start_pose.p.z + pose_dz
 
         # for grasp pose generation, it is used to initialize the object
         # it should be slightly higher than the fingertip
@@ -1385,10 +1403,10 @@ class LeapHandFlip(VecTaskRot):
         # ----
         # for in-hand object rotation, the initialization of z is only used in the first step
         # it is set to be 0.65 for backward compatibility
-        object_z = 0.66 if self.save_init_pose else 0.65
-        if "internal" not in self.grasp_cache_name:
-            object_z -= 0.02
-        object_start_pose.p.z = object_z
+        # object_z = 0.66 if self.save_init_pose else 0.65
+        # if "internal" not in self.grasp_cache_name:
+        #     object_z -= 0.02
+        # object_start_pose.p.z = object_z
 
         if "override_object_init_z" in self.cfg["env"]:
             object_start_pose.p.z = self.cfg["env"]["override_object_init_z"]
@@ -1399,7 +1417,7 @@ class LeapHandFlip(VecTaskRot):
         min_angvel = self.cfg["env"]["reward"]["angvelClipMin"]
         max_angvel = self.cfg["env"]["reward"]["angvelClipMax"]
 
-        reward = torch.clip(self.object_angvel_finite_diff[:, 2], min=min_angvel, max=max_angvel)
+        reward = torch.clip(self.object_angvel_finite_diff[:, 1] * self.flip_direction, min=min_angvel, max=max_angvel)
 
         N = self.progress_buf
         self.object_angvel_finite_diff_mean = N * self.object_angvel_finite_diff_mean / (N + 1) + reward / (N + 1)

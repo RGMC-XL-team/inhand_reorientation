@@ -115,7 +115,7 @@ env:
   include_history: True
 
   # observation
-  include_obj_pose: False
+  include_obj_pose: True
   include_obj_target: True
 
   episodeLength: 400 # default: 400
@@ -167,6 +167,8 @@ env:
   rew_scale: 1.0
 
   reward:
+    angvelClipMin: -0.25
+    angvelClipMax: 0.25
     poseDiffPenaltyScale: -0.025 # -0.1
     ftipRewardScale: -2. # -1.
     fallDistance: 0.24
@@ -177,6 +179,9 @@ env:
     aware_ftip_pos_names: ["finger1_tip_center", "finger3_tip_center"]
     dof_pos_mask: [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1]
 
+  additional_rewards:
+    rotate_finite_diff: 1.25 # 1.25
+
   # newly added
   goalReward:
     dof_pos_diff_thresh: 100.0 # 0.5
@@ -186,25 +191,25 @@ env:
     action_norm_thresh: 2.0 # 1.0
     reachGoalBonus: 800
     rotRewardScale: 1.0 # 1.0
-    posRewardScale: 0.02 # 0.05
+    posRewardScale: 0.0 # 0.05
     rotEps: 0.1
     posEps: 0.08
     clip_energy_reward: True
     energy_upper_bound: 10
     # success
     successTolerance: 0.4
-    successTolerancePos: 0.5 # default: 0.04
+    successTolerancePos: 0.04 # default: 0.04
     maxConsecutiveSuccesses: 20
 
   override_dist:
-    cube:
-      override_object_init_z: 0.57 # 0.57 for normal cube (7.5cm)
-      override_object_init_x: -0.03 # -0.03 for normal cube (7.5cm)
-      override_object_init_y: 0.04
-    cube_small:
-      override_object_init_z: 0.58 # 0.5575 for small cube (5cm)
-      override_object_init_x: -0.05 # -0.04 for small cube (5cm)
-      override_object_init_y: 0.04
+    # cube:
+    #   override_object_init_z: 0.57 # 0.57 for normal cube (7.5cm)
+    #   override_object_init_x: -0.03 # -0.03 for normal cube (7.5cm)
+    #   override_object_init_y: 0.04
+    # cube_small:
+    override_object_init_z: 0.585 # 0.5575 for small cube (5cm)
+    override_object_init_x: -0.05 # -0.04 for small cube (5cm)
+    override_object_init_y: 0.04
 
   # canonical_pose: [0.1458, -1.0470, 1.7247, -0.2187, 1.2985, 1.6139, 0.9757, 1.0728, -0.1054, 0.0290, 1.6039, 0.1227, -0.1084, 0.9652, 1.7317, 0.1071]
   canonical_pose:

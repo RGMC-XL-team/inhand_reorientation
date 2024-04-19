@@ -19,3 +19,7 @@ def get_pinocchio_7x_pose_from_4x4_transform(transform):
     pose[:3] = transform[:3, 3]
     pose[3:] = Rot.from_matrix(transform[:3, :3]).as_quat()
     return pose
+
+
+def normalize_array(array):
+    return array / np.linalg.norm(array, ord=2, axis=-1, keepdims=True)

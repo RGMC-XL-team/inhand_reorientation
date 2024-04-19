@@ -38,7 +38,7 @@ hand_canonical_pose = np.array(
     ]
 )
 
-# feature points
+# feature points (surface point + [bias] silicon radius)
 cube_feature_points = np.array(
     [
         [0.025, 0.0, 0.0],
@@ -51,6 +51,19 @@ cube_feature_points = np.array(
         [0.025, -0.025, 0.0],
     ]
 )
+# cube_feature_points += 0.01 * normalize_array(cube_feature_points)
+
+expand_cube_feature_points = np.zeros((0, 3))
+for i in range(len(cube_feature_points)):
+    point_start = cube_feature_points[i % len(cube_feature_points)]
+    point_end = cube_feature_points[(i + 1) % len(cube_feature_points)]
+    point_expand = np.linspace(point_start, point_end, 20)
+    if i != (len(cube_feature_points) - 1):
+        expand_cube_feature_points = np.concatenate((expand_cube_feature_points, point_expand[::-1]), axis=0)
+    else:
+        expand_cube_feature_points = np.concatenate((expand_cube_feature_points, point_expand), axis=0)
+
+pdb.set_trace()
 
 
 class LeapGraspCommander:
@@ -93,6 +106,9 @@ class LeapGraspCommander:
         self._cube_transform = get_4x4_transform_from_pos_quat(pos, quat)
 
     def get_grasp_point(self, finger_name, reference="world"):
+        """
+        This function is deprecated
+        """
         # TODO(yongpeng): remove this fixed point
         # _point = np.array([0.0, -self.cube_length / 2, 0.0])
         _point = dict_finger_grasp_point[finger_name]
@@ -104,6 +120,46 @@ class LeapGraspCommander:
             return _point_world[:3]
         else:
             return _point
+
+    def get_hand_pos_from_finger_pos(self, finger_pos):
+        """
+        finger_pos: dict
+        """
+        hand_pos = np.zeros(
+            16,
+        )
+        for finger_name, pos in finger_pos.items():
+            hand_pos += self.leap_kin.jointOrderPartUserToAllPin(part_name=finger_name, q_part_normal=pos)
+
+        return hand_pos
+
+    def get_nearest_grasp_point_all_fingers(self, hand_pos):
+        """
+        hand_pos: in IsaacGym orders
+        """
+        # get fingertip pos
+        fingertip_pos_dict = {}
+        for finger_name in dict_finger_grasp_point.keys():
+            finger_pos = hand_pos[self.leap_kin.part_joints_id[finger_name]]
+            fingertip_pos_dict[finger_name] = self.leap_kin.getTcpGlobalPose(finger_name, finger_pos)[0]
+            print(f"{finger_name} FK result: {self.leap_kin.getTcpGlobalPose(finger_name, finger_pos)[0]}")
+
+        # get nearest grasp point
+        key_points_transformed = np.dot(
+            self._cube_transform,
+            np.append(expand_cube_feature_points, np.ones((len(expand_cube_feature_points), 1)), axis=-1).T,
+        ).T[:, :3]
+        pdb.set_trace()
+        key_point_free_list = np.array([True for _ in range(len(expand_cube_feature_points))], dtype=bool)
+        fingertip_target_dict = {}
+        for finger_name, finger_tip_pos in fingertip_pos_dict.items():
+            dist_to_features = np.linalg.norm(key_points_transformed[:, :2] - finger_tip_pos[:2], axis=-1)
+            dist_to_features[~key_point_free_list] = np.inf
+            nearest_idx = np.argmin(dist_to_features)
+            key_point_free_list[nearest_idx] = False
+            fingertip_target_dict[finger_name] = key_points_transformed[nearest_idx]
+
+        return fingertip_target_dict
 
     def solve_single_finger_grasp_IK(self, finger_name):
         finger_tip_point = self.get_grasp_point(finger_name)
@@ -127,12 +183,12 @@ class LeapGraspCommander:
     def solve_hand_grasp_IK(self):
         ik_weights = np.diag([1, 1, 1, 0, 0, 0]) * 10
 
-        hand_pos = np.zeros(
-            16,
-        )
+        finger_target_dict = self.get_nearest_grasp_point_all_fingers(hand_canonical_pose)
+
+        finger_pos_sol_dict = {}
 
         for finger_name in dict_finger_grasp_point.keys():
-            finger_tip_point = self.get_grasp_point(finger_name)
+            finger_tip_point = finger_target_dict[finger_name]
             finger_tip_pose = get_4x4_transform_from_pos_quat(pos=finger_tip_point, quat=[0, 0, 0, 1])
             finger_init_pos = hand_canonical_pose[self.leap_kin.part_joints_id[finger_name]]
 
@@ -142,10 +198,13 @@ class LeapGraspCommander:
                 weights=ik_weights,
                 finger_joint_pos_init=finger_init_pos,
             )
-            print("hand pos: ", hand_pos)
-            hand_pos += self.leap_kin.jointOrderPartUserToAllPin(part_name=finger_name, q_part_normal=sol)
+            finger_pos_sol_dict[finger_name] = sol.copy()
 
+        hand_pos = self.get_hand_pos_from_finger_pos(finger_pos_sol_dict)
         self.view_pinocchio_model(hand_pos)
+        pdb.set_trace()
+        self.view_pinocchio_model(hand_canonical_pose)
+        pdb.set_trace()
         time.sleep(0.5)
 
 
@@ -153,7 +212,8 @@ if __name__ == "__main__":
     grasp_commander = LeapGraspCommander(visualize=True)
     # grasp_commander.solve_single_finger_grasp_IK("thumb")
 
-    for yaw in np.linspace(-45, 45, 30):
-        obj_quat = Rot.from_euler("z", yaw, degrees=True).as_quat()
-        grasp_commander.set_cube_transform_from_pos_quat(pos=[-0.05, 0.04, 0.087], quat=obj_quat)
-        grasp_commander.solve_hand_grasp_IK()
+    # for yaw in np.linspace(-45, 45, 30):
+    yaw = 45
+    obj_quat = Rot.from_euler("z", yaw, degrees=True).as_quat()
+    grasp_commander.set_cube_transform_from_pos_quat(pos=[-0.05, 0.04, 0.087], quat=obj_quat)
+    grasp_commander.solve_hand_grasp_IK()

@@ -145,7 +145,7 @@ def compute_reward(
     # resets: 1) reset_buf, 2) time due, 3) fall, 4) goal reach
     resets = torch.where(time_due_envs, torch.ones_like(resets), resets)
     resets = torch.where(goal_reach, torch.ones_like(resets), resets)
-    # dones: 1) goal reach, 2) fall, 3) time due
+    # dones: 1) goal reach, 2) fall (include move far from palm center), 3) time due
     dones = torch.logical_or(dones, time_due_envs)
     return (
         reward,
