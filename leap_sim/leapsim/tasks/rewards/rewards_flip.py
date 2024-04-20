@@ -45,6 +45,7 @@ def compute_reward(
     # palm_cf, palm_cf_scale: float,
     clip_energy_reward: bool,
     energy_upper_bound: float,
+    ftip_cf, ftip_cf_scale, ftip_cf_reward_scale: float
 ):
     num_envs = object_pos.shape[0]
 
@@ -54,6 +55,7 @@ def compute_reward(
     goal_dist = torch.norm(object_pos - target_pos, p=2, dim=-1)
     masked_goal_dist = torch.norm((object_pos - target_pos) * goal_mask, p=2, dim=-1)
 
+    # fingertip-object distance
     reward_terms = dict()
     if ftip_reward_scale is not None and ftip_reward_scale < 0:
         ftip_pos_mask = torch.tensor(ftip_pos_mask, dtype=torch.float).to(fingertip_pos.device).repeat(num_envs, 1)
@@ -62,6 +64,14 @@ def compute_reward(
         ftip_dist_mean = ftip_dist.mean(dim=-1)
         ftip_reward = ftip_dist_mean * ftip_reward_scale
         reward_terms['ftip_reward'] = ftip_reward
+
+    # fingertip contact force
+    if ftip_cf is not None and ftip_cf_scale is not None:
+        ftip_cf_scale = torch.tensor(ftip_cf_scale, dtype=torch.float).to(ftip_cf.device).repeat(num_envs, 1)
+        ftip_cf_norm = torch.linalg.norm(ftip_cf, dim=-1).view(num_envs, -1)
+        ftip_in_contact = ftip_cf_norm > 0.5
+        ftip_cf_reward = (ftip_in_contact * ftip_cf_scale).mean(dim=-1) * ftip_cf_reward_scale
+        reward_terms['ftip_cf_reward'] = ftip_cf_reward
 
     object_linvel_norm = torch.linalg.norm(object_linvel, dim=-1)
     object_angvel_norm = torch.linalg.norm(object_angvel, dim=-1)
@@ -187,6 +197,7 @@ def compute_leaphand_reward(
     dof_pos=None,
     target_dof_pos=None,
     dof_pos_mask=None,
+    ftip_cf=None
     # palm_cf=None
 ):
     rot_reward_scale = reward_cfg["rotRewardScale"]
@@ -244,6 +255,9 @@ def compute_leaphand_reward(
         # palm_cf_scale=reward_cfg['palm_cf_scale'],
         clip_energy_reward=reward_cfg["clip_energy_reward"],
         energy_upper_bound=reward_cfg["energy_upper_bound"],
+        ftip_cf=ftip_cf,
+        ftip_cf_scale=reward_cfg["ftip_cf_scale"],
+        ftip_cf_reward_scale=reward_cfg["ftip_cf_reward_scale"]
     )
     out = compute_reward(**kwargs)
     return out

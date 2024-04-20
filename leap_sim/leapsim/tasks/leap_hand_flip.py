@@ -102,6 +102,17 @@ class LeapHandFlip(VecTaskRot):
         self.root_state_tensor = gymtorch.wrap_tensor(actor_root_state_tensor).view(-1, 13)
         self.torques = gymtorch.wrap_tensor(dof_force_tensor).view(-1, self.num_leap_hand_dofs)
 
+        # get fingertip handles
+        fingertip_link_names = ["fingertip_new", "thumb_fingertip_new", "fingertip_2_new", "fingertip_3_new"]
+        self.forceful_fingertip_handles = []
+        leap_hand_handle = self.gym.find_actor_handle(self.envs[0], 'hand')
+        for tip_name in fingertip_link_names:
+            tip_index = self.gym.find_actor_rigid_body_index(self.envs[0],
+                                                            leap_hand_handle,
+                                                            tip_name,
+                                                            gymapi.DOMAIN_SIM)
+            self.forceful_fingertip_handles.append(tip_index)
+
         self.global_counter = 0
         self.prev_global_counter = 0
 
@@ -402,7 +413,7 @@ class LeapHandFlip(VecTaskRot):
             print("No fingertip pos is awared, set ftipRewardScale to 0!")
 
         rb_links = self.gym.get_asset_rigid_body_names(self.hand_asset)
-        self.fingertips = [x for x in rb_links if 'tip_center' in x]  # ["finger1_tip_center", "finger2_tip_center", "finger3_tip_center", "thumb_tip_center"]
+        self.fingertips = [x for x in rb_links if 'tip_center' in x]  # ["finger1_tip_center", "thumb_tip_center", "finger2_tip_center", "finger3_tip_center"]
         self.ftip_pos_mask = []
 
         for name in self.fingertips:
@@ -995,6 +1006,7 @@ class LeapHandFlip(VecTaskRot):
             dof_pos=self.leap_hand_dof_pos,
             target_dof_pos=self.init_pose_buf,
             dof_pos_mask=self.dof_pos_mask,
+            ftip_cf=self.fingertip_contact_force
             # palm_cf=self.palm_contact_force if self.cfg['env']['reward']['pen_palm_contact'] else None
         )
 
@@ -1027,6 +1039,7 @@ class LeapHandFlip(VecTaskRot):
         self.extras["rew_pos_reward"] = reward_terms["pos_reward"].mean().item()
         self.extras["rew_dof_pos_reward"] = reward_terms["dof_pos_reward"].mean().item()
         self.extras['rew_ftip_reward'] = reward_terms['ftip_reward'].mean().item()
+        self.extras['rew_ftip_cf_reward'] = reward_terms['ftip_cf_reward'].mean().item()
         self.extras["rew_energy_reward"] = reward_terms["energy_reward"].mean().item()
         self.extras["rew_object_fallen"] = reward_terms["object_fallen"].mean().item()
 
@@ -1236,6 +1249,9 @@ class LeapHandFlip(VecTaskRot):
         self.fingertip_pos = self.rigid_body_states[:, self.fingertip_handles][:, :, 0:3]
         self.fingertip_vel = self.rigid_body_states[:, self.fingertip_handles][:, :, 7:13]
 
+        # update fingertip contact force
+        self.fingertip_contact_force = self.contact_forces[:, self.forceful_fingertip_handles]
+
         # update goal information
         self.goal_pose = self.goal_states[:, 0:7]
         self.goal_pos = self.goal_states[:, 0:3]
@@ -1386,6 +1402,12 @@ class LeapHandFlip(VecTaskRot):
             self.gym.set_asset_rigid_shape_properties(self.hand_asset, rsp)
 
         self._get_leap_asset()
+
+        # # attach force sensor to fingertips
+        # for tip_name in self.fingertips:
+        #     tip_index = self.gym.find_asset_rigid_body_index(self.hand_asset, tip_name)
+        #     sensor_pose = gymapi.Transform(gymapi.Vec3(0, 0, 0))
+        #     self.gym.create_asset_force_sensor(self.hand_asset, tip_index, sensor_pose)
 
         # load object asset
         self.object_asset_list = []

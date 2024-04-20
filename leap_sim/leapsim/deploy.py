@@ -9,15 +9,19 @@
 # --------------------------------------------------------
 
 
+import pdb
 import math
 import os
 import random
 import xml.etree.ElementTree as ET
 from collections import deque
+import rospkg
 
 import hydra
 import matplotlib.pyplot as plt
 import numpy as np
+import isaacgym
+from isaacgym.torch_utils import quat_from_euler_xyz
 import torch
 from gym import spaces
 from omegaconf import DictConfig
@@ -28,6 +32,8 @@ from leapsim.learning import amp_continuous, amp_models, amp_network_builder, am
 from leapsim.utils.reformat import omegaconf_to_dict
 from leapsim.utils.rlgames_utils import RLGPUAlgoObserver
 
+from leap_hardware.srv import object_state
+from leap_task_B.leap_grasp_cube import LeapGraspCommander
 
 class HardwarePlayer:
     def __init__(self, config):
@@ -40,7 +46,10 @@ class HardwarePlayer:
         self.debug_viz = self.config["task"]["env"]["enableDebugVis"]
 
         # hand setting
-        self.init_pose = self.fetch_grasp_state()
+        # self.init_pose = self.fetch_grasp_state()
+        rospack = rospkg.RosPack()
+        canonical_pose_path = os.path.join(rospack.get_path("leap_sim"), "leapsim/cache", "leap_canonical_pose.npy")
+        self.init_pose = np.load(canonical_pose_path)
         self.get_dof_limits()
         # self.leap_dof_lower = torch.from_numpy(np.array([
         #     -1.5716, -0.4416, -1.2216, -1.3416,  1.0192,  0.0716,  0.2516, -1.3416,
@@ -144,6 +153,9 @@ class HardwarePlayer:
         if "include_targets" not in self.config["task"]["env"]:
             self.config["task"]["env"]["include_targets"] = True
 
+        if "history_length" not in self.config["task"]["env"]:
+            self.config["task"]["env"]["history_length"] = 3
+
     def fetch_grasp_state(self, s=1.0):
         self.grasp_cache_name = self.config["task"]["env"]["grasp_cache_name"]
         grasping_states = np.load(f'cache/{self.grasp_cache_name}_grasp_50k_s{str(s).replace(".", "")}.npy')
@@ -168,6 +180,12 @@ class HardwarePlayer:
                 leap.command_joint_position(_position)
                 _rate.sleep()
 
+        # generate object flip target
+        flip_pitch_target = -np.pi/2
+        self.goal_rot = quat_from_euler_xyz(
+            torch.zeros(1), torch.tensor(flip_pitch_target), torch.zeros(1)
+        ).to(self.device)
+
         # try to set up rospy
         num_obs = self.config["task"]["env"]["numObservations"]
         num_obs_single = num_obs // 3
@@ -179,8 +197,6 @@ class HardwarePlayer:
         leap.real_to_sim_indices = self.real_to_sim_indices
         # Wait for connections.
         rospy.wait_for_service("/leap_position")
-
-        import pdb
 
         pdb.set_trace()
 
@@ -195,13 +211,25 @@ class HardwarePlayer:
         #     obses, _ = leap.poll_joint_position()
         #     ros_rate.sleep()
 
+        # move to initial pose
         current_position = leap.poll_joint_position()[0]
         move_hand_to_pose(leap, start_position=current_position, goal_position=self.init_pose)
 
-        print("done")
+        # move to grasp pose
+        rospy.wait_for_service("/object_state")
+        self.object_state_proxy = rospy.ServiceProxy("/object_state", object_state)
+        curr_object_state = self.object_state_proxy().pose
+        grasp_commander = LeapGraspCommander()
+        grasp_commander.set_cube_transform_from_pos_quat(pos=curr_object_state[0:3], quat=curr_object_state[3:7])
+        self.grasp_pose = grasp_commander.solve_hand_grasp_IK()
 
-        import pdb
+        current_position = leap.poll_joint_position()[0]
+        print(f"Hand will move {self.grasp_pose - current_position} in joint space!")
 
+        pdb.set_trace()
+        move_hand_to_pose(leap, start_position=current_position, goal_position=self.grasp_pose)
+
+        print("done, policy deployment will start")
         pdb.set_trace()
 
         obses, _ = leap.poll_joint_position()
@@ -226,6 +254,9 @@ class HardwarePlayer:
 
             if self.config["task"]["env"]["include_targets"]:
                 obs_buf = torch.cat([obs_buf, prev_target.clone()], dim=-1)
+
+            if self.config["task"]["env"]["include_obj_target"]:
+                obs_buf = torch.cat([obs_buf, self.goal_rot.clone()], dim=-1)
 
             if "phase_period" in self.config["task"]["env"]:
                 phase = torch.tensor([[0.0, 1.0]], device=self.device)
@@ -339,6 +370,9 @@ class HardwarePlayer:
             if self.config["task"]["env"]["include_targets"]:
                 obs_buf = torch.cat([obs_buf, target.clone()], dim=-1)
 
+            if self.config["task"]["env"]["include_obj_target"]:
+                obs_buf = torch.cat([obs_buf, self.goal_rot.clone()], dim=-1)
+
             if "phase_period" in self.config["task"]["env"]:
                 omega = 2 * math.pi / self.config["task"]["env"]["phase_period"]
                 phase_angle = (counter - 1) * omega / hz
@@ -355,11 +389,18 @@ class HardwarePlayer:
 
     def forward_network(self, obs):
         return self.player.get_action(obs, True)
+    
+    def _modify_num_observations(self):
+        if self.config["task"]["env"]["include_obj_target"]:
+            self.config["task"]["env"]["numObservations"] += 4 * self.config["task"]["env"]["history_length"]
 
     def restore(self):
         rlg_config_dict = self.config["train"]
         rlg_config_dict["params"]["config"]["env_info"] = {}
+        
+        self._modify_num_observations()
         self.num_obs = self.config["task"]["env"]["numObservations"]
+
         self.num_actions = 16
         observation_space = spaces.Box(np.ones(self.num_obs) * -np.Inf, np.ones(self.num_obs) * np.Inf)
         rlg_config_dict["params"]["config"]["env_info"]["observation_space"] = observation_space

@@ -4,6 +4,7 @@ from os.path import abspath, dirname, join
 
 import numpy as np
 import pinocchio
+import isaacgym
 import torch
 from isaacgym.torch_utils import quat_from_angle_axis, quat_from_euler_xyz, quat_mul, to_torch
 from matplotlib import pyplot as plt
@@ -118,6 +119,9 @@ selected_joint_pos_rot[:, -4:] = quat_mul(fixed_rot, torch.tensor(selected_joint
 for i_j in range(len(selected_joint_pos)):
     q0 = selected_joint_pos[i_j]
     q0_rot = selected_joint_pos_rot[i_j]
+
+    # lower the object by 0.5m
+    q0[-5] -= 0.5
 
     viz.display(q0)
     # time.sleep(2.0)

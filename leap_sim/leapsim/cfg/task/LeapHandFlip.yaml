@@ -169,19 +169,28 @@ env:
   reward:
     angvelClipMin: -0.25
     angvelClipMax: 0.25
-    poseDiffPenaltyScale: -0.01 # -0.025
+    poseDiffPenaltyScale: -0.025 # -0.025
     ftipRewardScale: -3. # -2.
     fallDistance: 0.24
-    fallPenalty: -5 # -100
+    fallPenalty: -10 # -5
     energy_scale: 1 # 20
     pen_palm_contact: False
     palm_cf_scale: 1
+    ftip_cf_reward_scale: 1
+
     ## only penalize finger1 and finger3
     # aware_ftip_pos_names: ["finger1_tip_center", "finger3_tip_center"]
     # dof_pos_mask: [1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1]
     ## penlaize all the fingers
-    aware_ftip_pos_names: ["finger1_tip_center", "finger3_tip_center", "finger2_tip_center", "thumb_tip_center"]
+    aware_ftip_pos_names: # distances between these fingers and the object are computed in the rewards
+      [
+        "finger1_tip_center",
+        "thumb_tip_center",
+        "finger2_tip_center",
+        "finger3_tip_center",
+      ]
     dof_pos_mask: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+    ftip_cf_scale: [1.0, 1.0, 1.0, 1.0]
 
   additional_rewards:
     rotate_finite_diff: 1.25 # 1.25

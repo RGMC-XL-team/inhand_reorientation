@@ -28,7 +28,9 @@
     "python.analysis.extraPaths": [
         "./leap_hardware/src",
         "./leap_utils/src",
-        "./leap_utils/src"
+        "./leap_utils/src",
+        "./leap_task_B/src",
+        "./leap_task_B/src"
     ],
     "redhat.telemetry.enabled": false,
     "xml.format.maxLineWidth": 100
