@@ -16,9 +16,9 @@ physics_engine: ${..physics_engine}
 on_evaluation: False
 
 # IsaacGymEnvs style domain randomization
-randomize: False # default: True
+randomize: True # default: True
 randomization_params:
-  frequency: 1200
+  frequency: 600   # default: 1200
   observations:
     range: [0, .002]
     range_correlated: [0, .001]
@@ -37,31 +37,32 @@ randomization_params:
   actor_params:
     hand:
       # color: True
-      dof_properties:
-        damping:
-          range: [0.8, 1.2]
-          operation: "scaling"
-          distribution: "uniform"
-        stiffness:
-          range: [0.8, 1.2]
-          operation: "scaling"
-          distribution: "uniform"
-      rigid_body_properties:
-        mass:
-          range: [0.8, 1.2]
-          operation: "scaling"
-          distribution: "uniform"
-          setup_only: True
+      # dof_properties:
+      #   damping:
+      #     range: [0.8, 1.2]
+      #     operation: "scaling"
+      #     distribution: "uniform"
+      #   stiffness:
+      #     range: [0.8, 1.2]
+      #     operation: "scaling"
+      #     distribution: "uniform"
+      # rigid_body_properties:
+      #   mass:
+      #     range: [0.8, 1.2]
+      #     operation: "scaling"
+      #     distribution: "uniform"
+      #     setup_only: True
       rigid_shape_properties:
-        friction:
-          num_buckets: 100
-          range: [0.3, 2.0]
-          operation: "scaling"
-          distribution: "uniform"
-          same_for_all: True
+        # friction:
+        #   num_buckets: 100
+        #   range: [0.3, 2.0]
+        #   operation: "scaling"
+        #   distribution: "uniform"
+        #   same_for_all: True
         restitution:
           num_buckets: 100
-          range: [0.0, 2]
+          # range: [0.0, 2]
+          range: [1.0, 1.0]
           operation: "scaling"
           distribution: "uniform"
     object:
@@ -70,22 +71,23 @@ randomization_params:
       #   operation: "scaling"
       #   distribution: "uniform"
       #   setup_only: True
-      rigid_body_properties:
-        mass:
-          range: [0.3, 1.8]
-          operation: "scaling"
-          distribution: "uniform"
-          setup_only: True
+      # rigid_body_properties:
+      #   mass:
+      #     range: [0.3, 1.8]
+      #     operation: "scaling"
+      #     distribution: "uniform"
+      #     setup_only: True
       rigid_shape_properties:
-        friction:
-          num_buckets: 100
-          range: [0.3, 2.0]
-          operation: "scaling"
-          distribution: "uniform"
-          same_for_all: True
+        # friction:
+        #   num_buckets: 100
+        #   range: [0.3, 2.0]
+        #   operation: "scaling"
+        #   distribution: "uniform"
+        #   same_for_all: True
         restitution:
           num_buckets: 100
-          range: [0.0, 2]
+          # range: [0.0, 2]
+          range: [1.0, 1.0]
           operation: "scaling"
           distribution: "uniform"
 

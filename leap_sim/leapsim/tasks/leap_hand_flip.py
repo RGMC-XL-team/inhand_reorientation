@@ -393,11 +393,33 @@ class LeapHandFlip(VecTaskRot):
             (73, 3),
         ]
 
+    def _get_leap_asset(self, asset_root=None, asset_options=None):
+        self.aware_ftip_pos_names = self.cfg['env']['reward']['aware_ftip_pos_names']
+
+        # enable and disable ftip pos reward
+        if len(self.aware_ftip_pos_names) == 0:
+            self.cgf['env']['reward']['ftipRewardScale'] = 0
+            print("No fingertip pos is awared, set ftipRewardScale to 0!")
+
+        rb_links = self.gym.get_asset_rigid_body_names(self.hand_asset)
+        self.fingertips = [x for x in rb_links if 'tip_center' in x]  # ["finger1_tip_center", "finger2_tip_center", "finger3_tip_center", "thumb_tip_center"]
+        self.ftip_pos_mask = []
+
+        for name in self.fingertips:
+            if name in self.aware_ftip_pos_names:
+                self.ftip_pos_mask.append(1)
+            else:
+                self.ftip_pos_mask.append(0)
+
+        self.num_fingertips = len(self.fingertips)
+
+        print(f'Number of fingertips:{self.num_fingertips}  Fingertips:{self.fingertips}')
+
     def _modify_num_observations(self):
         if self.cfg["env"]["include_obj_pose"]:
-            self.cfg["env"]["numObservations"] += 7 * self.cfg["env"]["history_length"]
+            self.cfg["env"]["numObservations"] += 11 * self.cfg["env"]["history_length"]
         if self.cfg["env"]["include_obj_target"]:
-            self.cfg["env"]["numObservations"] += 8 * self.cfg["env"]["history_length"]
+            self.cfg["env"]["numObservations"] += 4 * self.cfg["env"]["history_length"]
 
     def _create_envs(self, num_envs, spacing, num_per_row):
         self._create_ground_plane()
@@ -451,6 +473,9 @@ class LeapHandFlip(VecTaskRot):
         self.hand_indices = []
         self.object_indices = []
         self.goal_object_indices = []
+
+        self.fingertip_handles = [self.gym.find_asset_rigid_body_index(self.hand_asset, name) for name in
+                                  self.fingertips]
 
         leap_hand_rb_count = self.gym.get_asset_rigid_body_count(self.hand_asset)
         object_rb_count = 1
@@ -563,6 +588,7 @@ class LeapHandFlip(VecTaskRot):
             self.num_envs, 13
         )
         self.object_rb_handles = to_torch(self.object_rb_handles, dtype=torch.long, device=self.device)
+        self.fingertip_handles = to_torch(self.fingertip_handles, dtype=torch.long, device=self.device)
         self.hand_indices = to_torch(self.hand_indices, dtype=torch.long, device=self.device)
         self.object_indices = to_torch(self.object_indices, dtype=torch.long, device=self.device)
 
@@ -880,19 +906,20 @@ class LeapHandFlip(VecTaskRot):
             # object_pose_noisy = self.get_obj_pose_noise(self.object_pose)
             # object_pos = object_pose_noisy[:, 0:3]
             # object_rot = object_pose_noisy[:, 3:7]
+            quat_diff = quat_mul(self.object_rot, quat_conjugate(self.goal_rot))
             cur_obs_buf = torch.cat(
                 [
                     cur_obs_buf,
                     self.object_pos.unsqueeze(1),
                     # self.object_rpy.unsqueeze(1)
                     self.object_rot.unsqueeze(1),
+                    quat_diff.unsqueeze(1)
                 ],
                 dim=-1,
             )
 
         if self.cfg["env"]["include_obj_target"]:
-            quat_diff = quat_mul(self.object_rot, quat_conjugate(self.goal_rot))
-            cur_obs_buf = torch.cat([cur_obs_buf, self.goal_rot.unsqueeze(1), quat_diff.unsqueeze(1)], dim=-1)
+            cur_obs_buf = torch.cat([cur_obs_buf, self.goal_rot.unsqueeze(1)], dim=-1)
 
         if self.cfg["env"]["include_obj_scales"]:
             cur_obs_buf = torch.cat(
@@ -960,7 +987,7 @@ class LeapHandFlip(VecTaskRot):
             self.goal_rot,
             self.reward_cfg,
             self.actions,
-            # self.fingertip_pos, self.fingertip_vel, self.ftip_pos_mask,
+            self.fingertip_pos, self.fingertip_vel, self.ftip_pos_mask,
             self.object_linvel,
             self.object_angvel,
             self.leap_hand_dof_vel,
@@ -986,7 +1013,7 @@ class LeapHandFlip(VecTaskRot):
         if "additional_rewards" in self.cfg["env"]:
             for reward_name, reward_scale in self.cfg["env"]["additional_rewards"].items():
                 reward_value = eval(f"self.reward_{reward_name}()") * reward_scale
-                self.extras[f"reward_{reward_name}"] = reward_value.mean()
+                self.extras[f"reward_{reward_name}"] = reward_value.mean().item()
                 self.rew_buf += reward_value
 
         # compute consecutive successes
@@ -996,19 +1023,19 @@ class LeapHandFlip(VecTaskRot):
         #                                 torch.ones_like(self.reset_buf), self.reset_buf)
 
         # compute mean reward values for logging (add prefix 'rew' to enable wandb logging)
-        self.extras["rew_rot_reward"] = reward_terms["rot_reward"].mean()
-        self.extras["rew_pos_reward"] = reward_terms["pos_reward"].mean()
-        self.extras["rew_dof_pos_reward"] = reward_terms["dof_pos_reward"].mean()
-        # self.extras['rew_ftip_reward'] = reward_terms['ftip_reward'].mean()
-        self.extras["rew_energy_reward"] = reward_terms["energy_reward"].mean()
-        self.extras["rew_object_fallen"] = reward_terms["object_fallen"].mean()
+        self.extras["rew_rot_reward"] = reward_terms["rot_reward"].mean().item()
+        self.extras["rew_pos_reward"] = reward_terms["pos_reward"].mean().item()
+        self.extras["rew_dof_pos_reward"] = reward_terms["dof_pos_reward"].mean().item()
+        self.extras['rew_ftip_reward'] = reward_terms['ftip_reward'].mean().item()
+        self.extras["rew_energy_reward"] = reward_terms["energy_reward"].mean().item()
+        self.extras["rew_object_fallen"] = reward_terms["object_fallen"].mean().item()
 
         self.extras["success"] = self.reset_goal_buf.detach().to(self.rl_device).flatten()
         # self.extras['consecutive_success'] = self.consecutive_successes.detach().to(self.rl_device).flatten()
         self.extras["abs_rot_dist"] = abs_rot_dist.detach().to(self.rl_device)
         self.extras["abs_pos_dist"] = abs_pos_dict.detach().to(self.rl_device)
 
-        self.extras["yaw_finite_diff"] = (self.object_angvel_finite_diff[:, 1] * self.flip_direction).mean()
+        self.extras["pitch_finite_diff"] = (self.object_angvel_finite_diff[:, 1] * self.flip_direction).mean().item()
         self.extras["TimeLimit.truncated"] = timeout_envs.detach().to(self.rl_device)
         for reward_key, reward_val in reward_terms.items():
             if reward_key == "object_fallen":
@@ -1204,6 +1231,11 @@ class LeapHandFlip(VecTaskRot):
         self.object_linvel = self.root_state_tensor[self.object_indices, 7:10]
         self.object_angvel = self.root_state_tensor[self.object_indices, 10:13]
 
+        # update fingertip information
+        self.fingertip_state = self.rigid_body_states[:, self.fingertip_handles][:, :, 0:13]
+        self.fingertip_pos = self.rigid_body_states[:, self.fingertip_handles][:, :, 0:3]
+        self.fingertip_vel = self.rigid_body_states[:, self.fingertip_handles][:, :, 7:13]
+
         # update goal information
         self.goal_pose = self.goal_states[:, 0:7]
         self.goal_pos = self.goal_states[:, 0:3]
@@ -1321,7 +1353,7 @@ class LeapHandFlip(VecTaskRot):
         hand_asset_options = gymapi.AssetOptions()
         hand_asset_options.flip_visual_attachments = False
         hand_asset_options.fix_base_link = True
-        hand_asset_options.collapse_fixed_joints = True
+        hand_asset_options.collapse_fixed_joints = False
         hand_asset_options.disable_gravity = False
         hand_asset_options.thickness = 0.001
         hand_asset_options.angular_damping = 0.01
@@ -1352,6 +1384,8 @@ class LeapHandFlip(VecTaskRot):
                     rsp[i].filter = 1
 
             self.gym.set_asset_rigid_shape_properties(self.hand_asset, rsp)
+
+        self._get_leap_asset()
 
         # load object asset
         self.object_asset_list = []

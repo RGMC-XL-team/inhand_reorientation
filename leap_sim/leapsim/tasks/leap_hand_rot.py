@@ -546,7 +546,7 @@ class LeapHandRot(VecTaskRot):
 
             for env_id in env_ids:
                 env = self.envs[env_id]
-                handle = self.gym.find_actor_handle(env, "object")
+                handle = self.gym.find_actor_handle(env, "object_cube")
                 prop = self.gym.get_actor_rigid_body_properties(env, handle)
                 for p in prop:
                     p.mass = np.random.uniform(lower, upper)
@@ -554,7 +554,7 @@ class LeapHandRot(VecTaskRot):
         else:
             for env_id in env_ids:
                 env = self.envs[env_id]
-                handle = self.gym.find_actor_handle(env, "object")
+                handle = self.gym.find_actor_handle(env, "object_cube")
                 prop = self.gym.get_actor_rigid_body_properties(env, handle)
 
         if self.randomize_pd_gains:
@@ -570,6 +570,23 @@ class LeapHandRot(VecTaskRot):
                 (len(env_ids), self.num_actions),
                 device=self.device,
             ).squeeze(1)
+
+        # TODO(yongpeng): apply these randomization every reset
+        if self.randomize_friction:
+            for env_id in env_ids:
+                env = self.envs[env_id]
+                rand_friction = np.random.uniform(self.randomize_friction_lower, self.randomize_friction_upper)
+                hand_actor = self.gym.find_actor_handle(env, "hand")
+                hand_props = self.gym.get_actor_rigid_shape_properties(env, hand_actor)
+                for p in hand_props:
+                    p.friction = rand_friction
+                self.gym.set_actor_rigid_shape_properties(env, hand_actor, hand_props)
+
+                object_handle = self.gym.find_actor_handle(env, "object_cube")
+                object_props = self.gym.get_actor_rigid_shape_properties(env, object_handle)
+                for p in object_props:
+                    p.friction = rand_friction
+                self.gym.set_actor_rigid_shape_properties(env, object_handle, object_props)
 
         # randomization can happen only at reset time, since it can reset actor positions on GPU
         if self.randomize:
@@ -845,7 +862,7 @@ class LeapHandRot(VecTaskRot):
         if "additional_rewards" in self.cfg["env"]:
             for reward_name, reward_scale in self.cfg["env"]["additional_rewards"].items():
                 reward_value = eval(f"self.reward_{reward_name}()") * reward_scale
-                self.extras[f"reward_{reward_name}"] = reward_value.mean()
+                self.extras[f"reward_{reward_name}"] = reward_value.mean().item()
                 self.rew_buf += reward_value
 
         self.reset_buf[:] = self.check_termination(self.object_pos)
@@ -856,15 +873,15 @@ class LeapHandRot(VecTaskRot):
 
         self.reset_buf = self.reset_buf | self.early_termination_buf
 
-        self.extras["rotation_reward"] = log_r_reward.mean()
-        self.extras["object_linvel_penalty"] = olv_penalty.mean()
-        self.extras["pose_diff_penalty"] = pose_diff_penalty.mean()
-        self.extras["work_done"] = work_penalty.mean()
-        self.extras["torques"] = torque_penalty.mean()
-        self.extras["roll"] = self.object_angvel[:, 0].mean()
-        self.extras["pitch"] = self.object_angvel[:, 1].mean()
-        self.extras["yaw"] = self.object_angvel[:, 2].mean()
-        self.extras["yaw_finite_diff"] = self.object_angvel_finite_diff[:, 2].mean()
+        self.extras["rotation_reward"] = log_r_reward.mean().item()
+        self.extras["object_linvel_penalty"] = olv_penalty.mean().item()
+        self.extras["pose_diff_penalty"] = pose_diff_penalty.mean().item()
+        self.extras["work_done"] = work_penalty.mean().item()
+        self.extras["torques"] = torque_penalty.mean().item()
+        self.extras["roll"] = self.object_angvel[:, 0].mean().item()
+        self.extras["pitch"] = self.object_angvel[:, 1].mean().item()
+        self.extras["yaw"] = self.object_angvel[:, 2].mean().item()
+        self.extras["yaw_finite_diff"] = self.object_angvel_finite_diff[:, 2].mean().item()
 
         if self.evaluate:
             finished_episode_mask = self.reset_buf == 1
@@ -1096,8 +1113,7 @@ class LeapHandRot(VecTaskRot):
             self.phase = torch.stack([torch.sin(phase_angle), torch.cos(phase_angle)], dim=-1)
 
     def _setup_domain_rand_cfg(self, rand_cfg):
-        # self.randomize_mass = rand_cfg['randomizeMass']
-        self.randomize_mass = False
+        self.randomize_mass = rand_cfg['randomizeMass']
         self.randomize_mass_lower = rand_cfg["randomizeMassLower"]
         self.randomize_mass_upper = rand_cfg["randomizeMassUpper"]
 
@@ -1105,8 +1121,7 @@ class LeapHandRot(VecTaskRot):
         self.randomize_com_lower = rand_cfg["randomizeCOMLower"]
         self.randomize_com_upper = rand_cfg["randomizeCOMUpper"]
 
-        # self.randomize_friction = rand_cfg['randomizeFriction']
-        self.randomize_friction = False
+        self.randomize_friction = rand_cfg['randomizeFriction']
         self.randomize_friction_lower = rand_cfg["randomizeFrictionLower"]
         self.randomize_friction_upper = rand_cfg["randomizeFrictionUpper"]
 
@@ -1116,8 +1131,7 @@ class LeapHandRot(VecTaskRot):
         self.randomize_scale_lower = rand_cfg["randomizeScaleLower"]
         self.randomize_scale_upper = rand_cfg["randomizeScaleUpper"]
 
-        # self.randomize_pd_gains = rand_cfg['randomizePDGains']
-        self.randomize_pd_gains = False
+        self.randomize_pd_gains = rand_cfg['randomizePDGains']
         self.randomize_p_gain_lower = rand_cfg["randomizePGainLower"]
         self.randomize_p_gain_upper = rand_cfg["randomizePGainUpper"]
         self.randomize_d_gain_lower = rand_cfg["randomizeDGainLower"]

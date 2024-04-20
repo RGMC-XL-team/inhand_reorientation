@@ -149,6 +149,12 @@ def launch_rlg_hydra(cfg: DictConfig):
         wandb.save(os.path.join(experiment_dir, "config.yaml"))
         wandb.save(os.path.join(experiment_dir, "LeapHandRot.yaml"))
         wandb.save(os.path.join(experiment_dir, "LeapHandRotPPO.yaml"))
+        wandb.save(os.path.join(experiment_dir, "LeapHandFlip.yaml"))
+        wandb.save(os.path.join(experiment_dir, "LeapHandFlipPPO.yaml"))
+
+    if cfg.wandb_activate and rank == 0:
+        cache_dir = os.path.join("cache")
+        wandb.save(os.path.join(cache_dir, "custom_grasp_cache_grasp_50k_s10.npy"))
 
     if cfg.multi_gpu:
         import horovod.torch as hvd
