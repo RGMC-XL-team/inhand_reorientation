@@ -14,7 +14,6 @@ from leap_utils.mingrui.utils_calc import *
 class Arena:
     def __init__(self):
         rospack = rospkg.RosPack()
-        urdf_path = os.path.join(rospack.get_path("my_robot_description"), "urdf/leaphand.urdf")
 
         self.model = mjcf.RootElement(model="arena")
 
@@ -28,7 +27,11 @@ class Arena:
         self.object = mjcf.from_file(
             os.path.join(rospack.get_path("my_robot_description"), "urdf/objects/cylinder_mujoco.xml")
         )
-        object_site = self.model.worldbody.add("site", pos=[-0.02, 0.015, 0.12], rgba=[0, 0, 0, 0])
+        object_quat = quatXYZW2WXYZ(sciR.from_euler("xyz", [90, 0, 0], degrees=True).as_quat())  # vertical cylinder
+        object_site = self.model.worldbody.add(
+            "site", pos=[-0.02, 0.015, 0.12 + 0.02], quat=object_quat, rgba=[0, 0, 0, 0]
+        )
+        # object_site = self.model.worldbody.add("site", pos=[-0.02, 0.015, 0.12], quat=object_quat, rgba=[0, 0, 0, 0]) # horizontal cylinder
         object_site.attach(self.object).add("joint", type="free", damping="0.0001")
 
         self.model.worldbody.add(
@@ -50,7 +53,7 @@ class Simulation:
         self.arena = Arena()
         self.model = self.arena.model
         self.physics = mjcf.Physics.from_mjcf_model(self.model)
-        self.timestep = 0.0005  # unit: s 0.0005
+        self.timestep = 0.0005  # unit: s
         self.physics.model.opt.timestep = self.timestep
         self.viewer = mujoco.viewer.launch_passive(self.physics.model.ptr, self.physics.data.ptr)
         self.viewer.cam.distance = 0.7  # change camera position

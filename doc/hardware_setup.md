@@ -37,9 +37,3 @@ catkin_make_isolated
 
 ### Conda
 The name of the conda env on the Alienware Laptop is ```RGMC24```.
-
-```bash
-# for task A
-pip install mujoco
-pip install git+https://github.com/google-deepmind/dm_control.git # install the latest dm_control
-```

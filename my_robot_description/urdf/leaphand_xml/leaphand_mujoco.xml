@@ -10,7 +10,7 @@
 
     <!-- include the description of the hand body -->
     <include
-        file="/home/robo/RGMC2024/catkin_ws/src/leap_XL/my_robot_description/urdf/leaphand_xml/leaphand.xml" />
+        file="/home/mingrui/Mingrui/research/project_RGMC_24/catkin_ws/src/leap_XL/my_robot_description/urdf/leaphand_xml/leaphand.xml" />
 
     <contact>
         <exclude body1="palm_lower" body2="mcp_joint" />

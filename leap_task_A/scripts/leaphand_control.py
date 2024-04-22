@@ -1,9 +1,11 @@
 import os
+import time
 
 import numpy as np
 import rospkg
 import rospy
 import yaml
+from leaphand_mujoco import Simulation
 from leaphand_real import LeapHandReal
 from scipy.spatial.transform import Rotation as sciR
 
@@ -19,8 +21,10 @@ class LeapHandControl:
 
         self.control_rate = 50
 
-        # self.env = Simulation(robot_model=robot_model)
-        self.env = LeapHandReal(control_rate=self.control_rate)
+        if b_use_ros:
+            self.env = LeapHandReal(control_rate=self.control_rate)
+        else:
+            self.env = Simulation(robot_model=robot_model)
 
         # for leaphand
         self.hand_target_joint_pos = self.env.getHandJointPos().copy()
@@ -119,19 +123,68 @@ class LeapHandControl:
         thumb_pos, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0, 0, 0], option="real")
 
         fingertip_radius = 0.008
-        finger0_grasp_offset = np.array([0.03 + fingertip_radius, -0.025, -0.0])
-        finger1_grasp_offset = np.array([0.03 + fingertip_radius, 0.025, 0.0])
-        thumb_grasp_offset = np.array([-0.03 - fingertip_radius, 0, 0])
-
-        finger0_target_pos = object_rot_mat @ finger0_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
-        finger1_target_pos = object_rot_mat @ finger1_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
-        thumb_target_pos = object_rot_mat @ thumb_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
 
         finger0_target_quat = finger0_quat.copy()
         finger1_target_quat = finger1_quat.copy()
         thumb_target_quat = thumb_quat.copy()
 
-        # 每个手指分别求的效率更高
+        # for horizontal cylinder
+        # finger0_grasp_offset = np.array([0.03 + fingertip_radius, -0.025, -0.0])
+        # finger1_grasp_offset = np.array([0.03 + fingertip_radius, 0.025, 0.0])
+        # thumb_grasp_offset = np.array([-0.03 - fingertip_radius, 0, 0])
+
+        # for vertical cylinder
+        # First, move the hand to a config near the grasping config, but no contact
+        radius = 0.03 + fingertip_radius + 0.005
+        finger0_grasp_offset = np.array([radius / np.sqrt(2), -0.02, radius / np.sqrt(2)])
+        finger1_grasp_offset = np.array([radius / np.sqrt(2), -0.02, -radius / np.sqrt(2)])
+        thumb_grasp_offset = np.array([-radius, -0.02, 0])
+
+        finger0_target_pos = object_rot_mat @ finger0_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+        finger1_target_pos = object_rot_mat @ finger1_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+        thumb_target_pos = object_rot_mat @ thumb_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+
+        finger0_res_joint_pos = self.robot_model.fingerIKSQP(
+            "finger0",
+            finger_target_pose=posQuat2Isometry3d(finger0_target_pos, finger0_target_quat),
+            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+            finger_joint_pos_init=self.getFingerJointPos("finger0", option="real"),
+            local_position=[0, 0, 0],
+        )
+        finger1_res_joint_pos = self.robot_model.fingerIKSQP(
+            "finger1",
+            finger_target_pose=posQuat2Isometry3d(finger1_target_pos, finger1_target_quat),
+            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+            finger_joint_pos_init=self.getFingerJointPos("finger1", option="real"),
+            local_position=[0, 0, 0],
+        )
+        thumb_res_joint_pos = self.robot_model.fingerIKSQP(
+            "thumb",
+            finger_target_pose=posQuat2Isometry3d(thumb_target_pos, thumb_target_quat),
+            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+            finger_joint_pos_init=self.getFingerJointPos("thumb", option="real"),
+            local_position=[0, 0, 0],
+        )
+
+        hand_target_joint_pos = np.zeros((16,))
+        hand_target_joint_pos[0:4] = finger0_res_joint_pos
+        hand_target_joint_pos[4:8] = finger1_res_joint_pos
+        hand_target_joint_pos[12:16] = thumb_res_joint_pos
+        self.moveHandToJointPos(target_joint_pos=hand_target_joint_pos, max_speed=np.deg2rad(90))
+
+        for i in range(int(1.0 / self.env.timestep)):
+            self.env.step()
+
+        # Second, move the hand to the grasping config and make the contact
+        radius = 0.03 + fingertip_radius
+        finger0_grasp_offset = np.array([radius / np.sqrt(2), -0.02, radius / np.sqrt(2)])
+        finger1_grasp_offset = np.array([radius / np.sqrt(2), -0.02, -radius / np.sqrt(2)])
+        thumb_grasp_offset = np.array([-radius, -0.02, 0])
+
+        finger0_target_pos = object_rot_mat @ finger0_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+        finger1_target_pos = object_rot_mat @ finger1_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+        thumb_target_pos = object_rot_mat @ thumb_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+
         finger0_res_joint_pos = self.robot_model.fingerIKSQP(
             "finger0",
             finger_target_pose=posQuat2Isometry3d(finger0_target_pos, finger0_target_quat),
@@ -316,7 +369,7 @@ class LeapHandControl:
             thumb_target_rel_pose=thumb_pose_in_object,
             finger0_target_rel_pose=finger0_pose_in_object,
             finger1_target_rel_pose=finger1_pose_in_object,
-            weights_object_pose=[10, 10, 10, 0.0, 0.00, 0.0],
+            weights_object_pose=[10, 10, 10, 0.01, 0.01, 0.0],
             weights_rel_pose=[10, 10, 10, 0.0, 0.0, 0.0],
             weights_joint_vel=1e-4,
             object_pose_init=object_pose,
@@ -355,12 +408,17 @@ def test1():
     for i in range(1):
         ctrl.moveHandToInitialConfig()
         ctrl.initialGrasping()
+
         object_pos, object_quat = ctrl.env.getQRCodePose()
 
-        for target_waypoint in target_waypoints:
-            target_pos = np.array([target_waypoint["x"], target_waypoint["y"], target_waypoint["z"]])
-            target_object_pos = object_pos + target_pos
-            control_err = ctrl.moveObject(target_object_pos=target_object_pos, target_object_quat=object_quat)
+        for j in range(1):
+            for waypoint_idx, target_waypoint in enumerate(target_waypoints):
+                target_pos = np.array([target_waypoint["x"], target_waypoint["y"], target_waypoint["z"]])
+                target_object_pos = object_pos + target_pos
+
+                print(f"waypoint_idx: {waypoint_idx}")
+
+                control_err = ctrl.moveObject(target_object_pos=target_object_pos, target_object_quat=object_quat)
 
         ctrl.env.physics.reset()
 
@@ -402,5 +460,5 @@ def test2():
 
 # ----------------------------------------------
 if __name__ == "__main__":
-    # test1()
-    test2()
+    test1()  # simulation
+    # test2() # real-world
