@@ -1,16 +1,29 @@
+import importlib.util
 import os
-import time
+import sys
+from pathlib import Path
 
 import numpy as np
 import rospkg
-import rospy
 import yaml
-from leaphand_mujoco import Simulation
-from leaphand_real import LeapHandReal
 from scipy.spatial.transform import Rotation as sciR
 
+# check if rospy is installed
+if importlib.util.find_spec("rospy") is None:
+    # manually add the path
+    current_file = Path(__file__).resolve()
+    repo_root_dir = current_file.parent.parent.parent
+    sys.path.append(str(repo_root_dir / "leap_model_based" / "src"))
+    sys.path.append(str(repo_root_dir / "leap_utils" / "src"))
+    os.environ["ROS_PACKAGE_PATH"] = str(repo_root_dir)
+else:
+    import rospy
+    from leaphand_real import LeapHandReal
+
+from leaphand_mujoco import Simulation
+
 from leap_model_based.leaphand_pinocchio import LeapHandPinocchio
-from leap_utils.mingrui.utils_calc import *
+from leap_utils.mingrui.utils_calc import posQuat2Isometry3d
 
 
 # -----------------------------------------------------------

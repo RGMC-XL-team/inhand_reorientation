@@ -5,8 +5,9 @@ import numpy as np
 import pinocchio as pin
 import rospkg
 from scipy.optimize import minimize
+from scipy.spatial.transform import Rotation as sciR
 
-from leap_utils.mingrui.utils_calc import *
+import leap_utils.mingrui.utils_calc as ucalc
 
 
 class LeapHandPinocchio:
@@ -179,7 +180,8 @@ class LeapHandPinocchio:
     # ------------------------------------------------
     def calcFingerPoseError(self, finger_name, finger_target_pose, finger_joint_pos, local_position):
         err = np.zeros((6,))
-        finger_target_pos, finger_target_ori = finger_target_ori[0:3], sciR.from_quat(finger_target_pose[3:7])
+        finger_target_pos = finger_target_pose[0:3]
+        finger_target_ori = sciR.from_quat(finger_target_pose[3:7])
 
         self.updateFK(finger_name, finger_joint_pos)
         finger_pos, finger_quat = self.getTcpGlobalPose(finger_name, local_position=local_position)
@@ -192,7 +194,7 @@ class LeapHandPinocchio:
         return err
 
     # ------------------------------------------------
-    def fingerDiffIK(
+    def fingerDiffIK(  # noqa: PLR0913
         self,
         finger_name,
         finger_target_pose,
@@ -222,10 +224,10 @@ class LeapHandPinocchio:
                 return
 
     # ------------------------------------------------
-    def fingerIKSQP(self, finger_name, finger_target_pose, weights, finger_joint_pos_init, local_position=None):
+    def fingerIKSQP(self, finger_name, finger_target_pose, weights, finger_joint_pos_init, local_position=None):  # noqa: PLR0913
         t_ik = time.time()
 
-        finger_target_pos, finger_target_ori = isometry3dToPosOri(finger_target_pose)
+        finger_target_pos, finger_target_ori = ucalc.isometry3dToPosOri(finger_target_pose)
         self.curr_err = None
 
         # ------------------------
@@ -292,10 +294,10 @@ class LeapHandPinocchio:
     # ----------------------------------
     """
         input:
-            finger_local_postion: currently not supported
+            finger_local_position: currently not supported
     """
 
-    def relaxedTrajectoryOptimization(
+    def relaxedTrajectoryOptimization(  # noqa: PLR0913, PLR0915
         self,
         T,
         delta_t,
@@ -303,7 +305,7 @@ class LeapHandPinocchio:
         object_pose_in_thumb,
         finger0_target_rel_pose=None,
         finger1_target_rel_pose=None,
-        finger2_target_rel_pose=None,  # relative to thumbtip frame
+        finger2_target_rel_pose=None,  # relative to thumb tip frame
         weights_object_pose=None,
         weights_rel_pose=None,
         weights_joint_vel=None,
@@ -315,7 +317,7 @@ class LeapHandPinocchio:
     ):
         t_ik = time.time()
         hand_joint_pos_init = np.asarray(hand_joint_pos_init)
-        object_target_pos, object_target_ori = isometry3dToPosOri(object_target_pose)
+        object_target_pos, object_target_ori = ucalc.isometry3dToPosOri(object_target_pose)
 
         # add object frame
         thumb_tcp_parent_joint = self.model.frames[self.tcp_links_id["thumb"]].parent
@@ -341,7 +343,7 @@ class LeapHandPinocchio:
             fingers_target_rel_pose["finger2"] = finger2_target_rel_pose
         fingers_target_rel_pos_ori = {}
         for finger_name, target_rel_pose in fingers_target_rel_pose.items():
-            fingers_target_rel_pos_ori[finger_name] = isometry3dToPosOri(target_rel_pose)
+            fingers_target_rel_pos_ori[finger_name] = ucalc.isometry3dToPosOri(target_rel_pose)
 
         fingers_local_position = {}
         fingers_local_position["finger0"] = finger0_local_position
@@ -391,13 +393,13 @@ class LeapHandPinocchio:
                         finger_name, local_position=fingers_local_position[finger_name]
                     )
 
-            thumb_local_pose_inv = batchIsometry3dInverse(
-                batchPosQuat2Isometry3d(fingers_pos["thumb"], fingers_quat["thumb"])
+            thumb_local_pose_inv = ucalc.batchIsometry3dInverse(
+                ucalc.batchPosQuat2Isometry3d(fingers_pos["thumb"], fingers_quat["thumb"])
             )
 
             for finger_name, (finger_target_rel_pos, finger_target_rel_ori) in fingers_target_rel_pos_ori.items():
                 finger_pos, finger_quat = fingers_pos[finger_name], fingers_quat[finger_name]
-                finger_pose = batchPosQuat2Isometry3d(finger_pos, finger_quat)
+                finger_pose = ucalc.batchPosQuat2Isometry3d(finger_pos, finger_quat)
                 finger_rel_pose = np.matmul(thumb_local_pose_inv, finger_pose)
                 finger_rel_pos_err = finger_rel_pose[:, 0:3, 3] - np.tile(finger_target_rel_pos, (T, 1))
                 finger_rel_ori_err = (
@@ -462,24 +464,24 @@ class LeapHandPinocchio:
                         finger_name, local_position=fingers_local_position[finger_name], joint_part_name=finger_name
                     )
 
-            thumb_local_pose_inv = batchIsometry3dInverse(
-                batchPosQuat2Isometry3d(fingers_pos["thumb"], fingers_quat["thumb"])
+            thumb_local_pose_inv = ucalc.batchIsometry3dInverse(
+                ucalc.batchPosQuat2Isometry3d(fingers_pos["thumb"], fingers_quat["thumb"])
             )
             transformed_thumb_local_jaco = np.matmul(
-                batchDiagRotMat(thumb_local_pose_inv[:, 0:3, 0:3]), fingers_jaco["thumb"]
+                ucalc.batchDiagRotMat(thumb_local_pose_inv[:, 0:3, 0:3]), fingers_jaco["thumb"]
             )
 
             for finger_name, _ in fingers_target_rel_pos_ori.items():
-                finger_pose = batchPosQuat2Isometry3d(fingers_pos[finger_name], fingers_quat[finger_name])
+                finger_pose = ucalc.batchPosQuat2Isometry3d(fingers_pos[finger_name], fingers_quat[finger_name])
                 finger_rel_pose = np.matmul(thumb_local_pose_inv, finger_pose)
                 finger_rel_pos = finger_rel_pose[:, 0:3, 3]
 
                 temp_jaco = np.zeros((T, 6, 16))  # 自变量只包括t时刻的关节
                 temp_jaco[:, :, self.finger_joints_id_in_hand[finger_name]] = np.matmul(
-                    batchDiagRotMat(thumb_local_pose_inv[:, 0:3, 0:3]), fingers_jaco[finger_name]
+                    ucalc.batchDiagRotMat(thumb_local_pose_inv[:, 0:3, 0:3]), fingers_jaco[finger_name]
                 )
                 temp_jaco[:, :, self.finger_joints_id_in_hand["thumb"]] = -np.matmul(
-                    wrenchTransformationMatrix(finger_rel_pos), transformed_thumb_local_jaco
+                    ucalc.wrenchTransformationMatrix(finger_rel_pos), transformed_thumb_local_jaco
                 )
 
                 whole_jaco = np.zeros((T, 6, T + 1, 16))
@@ -529,7 +531,7 @@ class LeapHandPinocchio:
         return traj_hand_joint_pos
 
     # ------------------------------------------------
-    def relaxedTrajectoryOptimization2(
+    def relaxedTrajectoryOptimization2(  # noqa: PLR0913, PLR0915
         self,
         T,
         delta_t,
@@ -550,7 +552,7 @@ class LeapHandPinocchio:
     ):
         t_ik = time.time()
         hand_joint_pos_init = np.asarray(hand_joint_pos_init)
-        object_target_pos, object_target_ori = isometry3dToPosOri(object_target_pose)
+        object_target_pos, object_target_ori = ucalc.isometry3dToPosOri(object_target_pose)
 
         fingers_target_rel_pose = {}
         if thumb_target_rel_pose is not None:
@@ -563,7 +565,7 @@ class LeapHandPinocchio:
             fingers_target_rel_pose["finger2"] = finger2_target_rel_pose
         fingers_target_rel_pos_ori = {}
         for finger_name, target_rel_pose in fingers_target_rel_pose.items():
-            fingers_target_rel_pos_ori[finger_name] = isometry3dToPosOri(target_rel_pose)
+            fingers_target_rel_pos_ori[finger_name] = ucalc.isometry3dToPosOri(target_rel_pose)
 
         fingers_local_position = {}
         fingers_local_position["finger0"] = finger0_local_position
@@ -572,7 +574,7 @@ class LeapHandPinocchio:
         fingers_local_position["thumb"] = thumb_local_position
 
         # init value
-        object_pos_init, object_rotvec_init = isometry3dToPosRotVec(object_pose_init)
+        object_pos_init, object_rotvec_init = ucalc.isometry3dToPosRotVec(object_pose_init)
         val_init = np.concatenate([object_pos_init, object_rotvec_init, hand_joint_pos_init], axis=0)
         traj_val_init = np.tile(val_init, T + 1)
         # bounds
@@ -616,13 +618,13 @@ class LeapHandPinocchio:
                         finger_name, local_position=fingers_local_position[finger_name]
                     )
 
-            object_pose_inv = batchIsometry3dInverse(
-                batchPosRotVec2Isometry3d(traj_object_pos[1:, :], traj_object_rotvec[1:, :])
+            object_pose_inv = ucalc.batchIsometry3dInverse(
+                ucalc.batchPosRotVec2Isometry3d(traj_object_pos[1:, :], traj_object_rotvec[1:, :])
             )
 
             for finger_name, (finger_target_rel_pos, finger_target_rel_ori) in fingers_target_rel_pos_ori.items():
                 finger_pos, finger_quat = fingers_pos[finger_name], fingers_quat[finger_name]
-                finger_pose = batchPosQuat2Isometry3d(finger_pos, finger_quat)
+                finger_pose = ucalc.batchPosQuat2Isometry3d(finger_pos, finger_quat)
                 finger_rel_pose = np.matmul(object_pose_inv, finger_pose)
                 finger_rel_pos_err = finger_rel_pose[:, 0:3, 3] - np.tile(finger_target_rel_pos, (T, 1))
                 finger_rel_ori_err = (
@@ -665,7 +667,7 @@ class LeapHandPinocchio:
             # ------------ object pose in world frame at {T} -------------
             whole_jaco = np.zeros((6, T + 1, 6 + 16))
             whole_jaco[0:3, -1, 0:3] = np.eye(3)
-            whole_jaco[3:6, -1, 3:6] = jacoDeRotVecToAngularVel(traj_object_rotvec[-1, :])
+            whole_jaco[3:6, -1, 3:6] = ucalc.jacoDeRotVecToAngularVel(traj_object_rotvec[-1, :])
             jaco_list.append(whole_jaco.reshape(6, -1))
 
             # ------------ finger pose in thumb frame at {t = 1,...T} ------------
@@ -687,17 +689,17 @@ class LeapHandPinocchio:
                         finger_name, local_position=fingers_local_position[finger_name], joint_part_name=finger_name
                     )
 
-            object_pose_inv = batchIsometry3dInverse(
-                batchPosRotVec2Isometry3d(traj_object_pos[1:, :], traj_object_rotvec[1:, :])
+            object_pose_inv = ucalc.batchIsometry3dInverse(
+                ucalc.batchPosRotVec2Isometry3d(traj_object_pos[1:, :], traj_object_rotvec[1:, :])
             )
             object_jaco = np.zeros((T, 6, 6))  # T = 1, ..., T
             object_jaco[:, 0:3, 0:3] = np.tile(np.eye(3), (T, 1, 1))
-            object_jaco[:, 3:6, 3:6] = jacoDeRotVecToAngularVel(traj_object_rotvec[1:, :])
-            transform_mat = batchDiagRotMat(object_pose_inv[:, 0:3, 0:3])
+            object_jaco[:, 3:6, 3:6] = ucalc.jacoDeRotVecToAngularVel(traj_object_rotvec[1:, :])
+            transform_mat = ucalc.batchDiagRotMat(object_pose_inv[:, 0:3, 0:3])
             transformed_object_jaco = np.matmul(transform_mat, object_jaco)
 
             for finger_name, _ in fingers_target_rel_pos_ori.items():
-                finger_pose = batchPosQuat2Isometry3d(fingers_pos[finger_name], fingers_quat[finger_name])
+                finger_pose = ucalc.batchPosQuat2Isometry3d(fingers_pos[finger_name], fingers_quat[finger_name])
                 finger_rel_pose = np.matmul(object_pose_inv, finger_pose)
                 finger_rel_pos = finger_rel_pose[:, 0:3, 3]
 
@@ -705,7 +707,9 @@ class LeapHandPinocchio:
                 temp_jaco[:, :, 6 + np.asarray(self.finger_joints_id_in_hand[finger_name])] = np.matmul(
                     transform_mat, fingers_jaco[finger_name]
                 )
-                temp_jaco[:, :, 0:6] = -np.matmul(wrenchTransformationMatrix(finger_rel_pos), transformed_object_jaco)
+                temp_jaco[:, :, 0:6] = -np.matmul(
+                    ucalc.wrenchTransformationMatrix(finger_rel_pos), transformed_object_jaco
+                )
 
                 whole_jaco = np.zeros((T, 6, T + 1, 6 + 16))
                 for t in range(T):
@@ -782,7 +786,7 @@ if __name__ == "__main__":
 
     res_joint_pos = robot_model.fingerIKSQP(
         "finger0",
-        finger_target_pose=posQuat2Isometry3d(pos, quat),
+        finger_target_pose=ucalc.posQuat2Isometry3d(pos, quat),
         weights=np.diag([10, 10, 10, 0.1, 0, 0.1]),
         finger_joint_pos_init=hand_joint_pos[0:4],
         local_position=[0, 0, 0],

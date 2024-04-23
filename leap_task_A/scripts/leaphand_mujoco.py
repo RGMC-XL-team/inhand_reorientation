@@ -5,9 +5,10 @@ import mujoco.viewer
 import numpy as np
 import rospkg
 from dm_control import mjcf, mujoco
+from scipy.spatial.transform import Rotation as sciR
 
+import leap_utils.mingrui.utils_calc as ucalc
 from leap_model_based.leaphand_pinocchio import LeapHandPinocchio
-from leap_utils.mingrui.utils_calc import *
 
 
 # -----------------------------------------------------------
@@ -21,13 +22,25 @@ class Arena:
         self.model.attach(scene)
 
         xml_file_path = os.path.join(rospack.get_path("my_robot_description"), "urdf/leaphand_xml/leaphand_mujoco.xml")
-        self.leap_hand = mjcf.from_file(xml_file_path)
+        with open(xml_file_path) as file:
+            xml_content = file.read()
+        xml_content = xml_content.replace(
+            "./leaphand.xml", os.path.join(os.path.dirname(xml_file_path), "leaphand.xml")
+        )
+        self.leap_hand = mjcf.from_xml_string(xml_content)
         self.model.attach(self.leap_hand)
 
-        self.object = mjcf.from_file(
-            os.path.join(rospack.get_path("my_robot_description"), "urdf/objects/cylinder_mujoco.xml")
+        xml_file_path = os.path.join(rospack.get_path("my_robot_description"), "urdf/objects/cylinder_mujoco.xml")
+        with open(xml_file_path) as file:
+            xml_content = file.read()
+        xml_content = xml_content.replace(
+            "./cylinder.xml", os.path.join(os.path.dirname(xml_file_path), "cylinder.xml")
         )
-        object_quat = quatXYZW2WXYZ(sciR.from_euler("xyz", [90, 0, 0], degrees=True).as_quat())  # vertical cylinder
+        self.object = mjcf.from_xml_string(xml_content)
+
+        object_quat = ucalc.quatXYZW2WXYZ(
+            sciR.from_euler("xyz", [90, 0, 0], degrees=True).as_quat()
+        )  # vertical cylinder
         object_site = self.model.worldbody.add(
             "site", pos=[-0.02, 0.015, 0.12 + 0.02], quat=object_quat, rgba=[0, 0, 0, 0]
         )
@@ -65,7 +78,7 @@ class Simulation:
 
         self.mujoco_actuators = {}
         for joint_name in self.P.part_joints_name["hand"]:
-            number = re.search(r"\d+$", joint_name).group()
+            number = re.search(R"\d+$", joint_name).group()
             self.mujoco_actuators[joint_name] = self.arena.leap_hand.find(
                 "actuator", "actuator_" + number
             )  # take care of the names of the actuators and joints
@@ -104,7 +117,7 @@ class Simulation:
     def getObjectPose(self):
         object = self.arena.object.find("body", "object")
         pos = np.array(self.physics.bind(object).xpos)
-        quat = quatWXYZ2XYZW(self.physics.bind(object).xquat)
+        quat = ucalc.quatWXYZ2XYZW(self.physics.bind(object).xquat)
         return pos, quat
 
     # --------------------------------------

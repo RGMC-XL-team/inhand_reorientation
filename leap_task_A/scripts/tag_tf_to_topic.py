@@ -23,23 +23,22 @@ class TagProcess:
                 self.tag_frame_id,
                 rospy.Time(0),  # latest
             )
-
-            posestamped = PoseStamped()
-            posestamped.header.stamp = rospy.Time.now()
-            posestamped.header.frame_id = "world"
-            posestamped.pose.position.x = transform.transform.translation.x
-            posestamped.pose.position.y = transform.transform.translation.y
-            posestamped.pose.position.z = transform.transform.translation.z
-            posestamped.pose.orientation.w = transform.transform.rotation.w
-            posestamped.pose.orientation.x = transform.transform.rotation.x
-            posestamped.pose.orientation.y = transform.transform.rotation.y
-            posestamped.pose.orientation.z = transform.transform.rotation.z
-
-            self.tag_pose_pub.publish(posestamped)
-
-        except:
-            rospy.logwarn("Cannot publish tag poses.")
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            rospy.logwarn(f"Cannot do lookup transform. {e.what()}")
             pass
+
+        msg = PoseStamped()
+        msg.header.stamp = rospy.Time.now()
+        msg.header.frame_id = "world"
+        msg.pose.position.x = transform.transform.translation.x
+        msg.pose.position.y = transform.transform.translation.y
+        msg.pose.position.z = transform.transform.translation.z
+        msg.pose.orientation.w = transform.transform.rotation.w
+        msg.pose.orientation.x = transform.transform.rotation.x
+        msg.pose.orientation.y = transform.transform.rotation.y
+        msg.pose.orientation.z = transform.transform.rotation.z
+
+        self.tag_pose_pub.publish(msg)
 
     def main(self):
         rate = rospy.Rate(30)
