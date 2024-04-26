@@ -604,6 +604,8 @@ class LeapHandPinocchio:
             err_list.extend(object_pos - object_target_pos)
             err_list.extend((sciR.from_rotvec(object_rotvec) * object_target_ori.inv()).as_rotvec())
 
+            # print("object_pose_err: ", err_list)
+
             # ------------ finger pose in object frame at {t = 1,...T} ------------
             fingers_pos = {}
             fingers_quat = {}
@@ -728,16 +730,29 @@ class LeapHandPinocchio:
             object_jaco = err.T @ weights @ jaco
 
             # print(f"Time cost of calc jacobian: {time.time() - t1}")
-            return object_jaco.reshape(
-                -1,
-            )
+            return object_jaco.reshape(-1)
 
         def x0EqConstraint(val):
             val = val.reshape(T + 1, -1)
             eq = val[0, :] - val_init  # = 0
             return eq
 
-        constraints_list = [dict(type="eq", fun=x0EqConstraint)]
+        def x0EqConstraintJaco(val):
+            jaco = np.zeros((22, val.size))
+            jaco[:, 0:22] = np.eye(22)
+            return jaco
+
+        # def jointVelIneqConstraint(val):
+        #     val = val.reshape(T + 1, -1)
+        #     _, _, traj_hand_joint_pos = val[:, 0:3], val[:, 3:6], val[:, 6 : 6 + 16]
+        #     traj_hand_joint_vel = (traj_hand_joint_pos[1:, :] - traj_hand_joint_pos[0:-1, :]) / delta_t
+        #     joint_vel_ub = 100
+        #     ineq = np.abs(traj_hand_joint_vel) - joint_vel_ub  # <= 0
+        #     return -ineq.reshape(-1)
+
+        # constraints_list = [dict(type="eq", fun=x0EqConstraint), dict(type="ineq", fun=jointVelIneqConstraint)]
+        constraints_list = [dict(type="eq", fun=x0EqConstraint, jac=x0EqConstraintJaco)]
+        # constraints_list = []
 
         res = minimize(
             fun=objectFunction,
@@ -752,9 +767,12 @@ class LeapHandPinocchio:
 
         print(f"Time cost of SQP_IK: {time.time() - t_ik}")
 
+        traj_object_pos = res_val.reshape(T + 1, -1)[:, 0:3]
+        planned_object_err = np.linalg.norm(traj_object_pos[-1] - object_target_pos)
         traj_hand_joint_pos = res_val.reshape(T + 1, -1)[:, 6:]
-        return traj_hand_joint_pos
+        return traj_hand_joint_pos, planned_object_err
 
+    # ------------------------------------------
     def test(self):
         thumb_tcp_parent_joint = self.model.frames[self.tcp_links_id["thumb"]].parent
         thumb_tcp_placement = self.model.frames[self.tcp_links_id["thumb"]].placement
