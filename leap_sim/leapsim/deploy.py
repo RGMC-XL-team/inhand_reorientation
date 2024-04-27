@@ -156,6 +156,9 @@ class HardwarePlayer:
         if "history_length" not in self.config["task"]["env"]:
             self.config["task"]["env"]["history_length"] = 3
 
+        if "include_obj_target" not in self.config["task"]["env"]:
+            self.config["task"]["env"]["include_obj_target"] = False
+
     def fetch_grasp_state(self, s=1.0):
         self.grasp_cache_name = self.config["task"]["env"]["grasp_cache_name"]
         grasping_states = np.load(f'cache/{self.grasp_cache_name}_grasp_50k_s{str(s).replace(".", "")}.npy')
@@ -181,7 +184,7 @@ class HardwarePlayer:
                 _rate.sleep()
 
         # generate object flip target
-        flip_pitch_target = -np.pi/2
+        flip_pitch_target = np.pi/2
         self.goal_rot = quat_from_euler_xyz(
             torch.zeros(1), torch.tensor(flip_pitch_target), torch.zeros(1)
         ).to(self.device)

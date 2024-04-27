@@ -45,6 +45,9 @@ def compute_reward(
     # palm_cf, palm_cf_scale: float,
     clip_energy_reward: bool,
     energy_upper_bound: float,
+    clip_torque_reward: bool,
+    torque_scale: float,
+    torque_upper_bound: float,
     ftip_cf, ftip_cf_scale, ftip_cf_reward_scale: float
 ):
     num_envs = object_pos.shape[0]
@@ -67,10 +70,22 @@ def compute_reward(
 
     # fingertip contact force
     if ftip_cf is not None and ftip_cf_scale is not None:
-        ftip_cf_scale = torch.tensor(ftip_cf_scale, dtype=torch.float).to(ftip_cf.device).repeat(num_envs, 1)
-        ftip_cf_norm = torch.linalg.norm(ftip_cf, dim=-1).view(num_envs, -1)
-        ftip_in_contact = ftip_cf_norm > 0.5
-        ftip_cf_reward = (ftip_in_contact * ftip_cf_scale).mean(dim=-1) * ftip_cf_reward_scale
+        ftip_rigid_cf, ftip_soft_cf = ftip_cf
+        ftip_cf_scale = torch.tensor(ftip_cf_scale, dtype=torch.float).to(ftip_rigid_cf.device).repeat(num_envs, 1)
+        
+        # soft contact (reward)
+        soft_cf_norm = torch.linalg.norm(ftip_soft_cf, dim=-1).view(num_envs, -1)
+        ftip_in_contact_soft = soft_cf_norm > 0.5
+
+        # rigid contact (penalize)
+        rigid_cf_norm = torch.linalg.norm(ftip_rigid_cf, dim=-1).view(num_envs, -1)
+        ftip_in_contact_rigid = rigid_cf_norm > 0.5
+
+        # add both
+        ftip_cf_reward = torch.zeros((num_envs,), dtype=torch.float, device=ftip_rigid_cf.device)
+        ftip_cf_reward += (ftip_in_contact_soft * ftip_cf_scale).mean(dim=-1) * ftip_cf_reward_scale
+        ftip_cf_reward -= 2 * (ftip_in_contact_rigid * ftip_cf_scale).mean(dim=-1) * ftip_cf_reward_scale
+        
         reward_terms['ftip_cf_reward'] = ftip_cf_reward
 
     object_linvel_norm = torch.linalg.norm(object_linvel, dim=-1)
@@ -87,10 +102,10 @@ def compute_reward(
     rot_rew = 1.0 / (abs_rot_dist + rot_eps) * rot_reward_scale
     reward_terms["rot_reward"] = rot_rew
 
-    # position reward
-    # pos_rew = -masked_goal_dist * pos_reward_scale
-    pos_rew = 1.0 / (masked_goal_dist + pos_eps) * pos_reward_scale
-    reward_terms["pos_reward"] = pos_rew
+    # # position reward
+    # # pos_rew = -masked_goal_dist * pos_reward_scale
+    # pos_rew = 1.0 / (masked_goal_dist + pos_eps) * pos_reward_scale
+    # reward_terms["pos_reward"] = pos_rew
 
     # dof pos diff penalty
     if dof_pos_mask is None:
@@ -106,6 +121,11 @@ def compute_reward(
     if clip_energy_reward:
         energy_cost = torch.clamp(energy_cost, max=energy_upper_bound)
     reward_terms["energy_reward"] = -energy_cost * energy_scale
+
+    torque_cost = torch.linalg.norm(dof_torque, dim=-1)
+    if clip_torque_reward:
+        torque_cost = torch.clamp(torque_cost, max=torque_upper_bound)
+    reward_terms["torque_reward"] = -torque_cost * torque_scale
 
     # if penalize_palm_contact:
     #     in_contact = torch.abs(palm_cf).sum(-1) > 0.5                       # 0.2
@@ -255,6 +275,9 @@ def compute_leaphand_reward(
         # palm_cf_scale=reward_cfg['palm_cf_scale'],
         clip_energy_reward=reward_cfg["clip_energy_reward"],
         energy_upper_bound=reward_cfg["energy_upper_bound"],
+        clip_torque_reward=reward_cfg["clip_torque_reward"],
+        torque_scale=reward_cfg["torque_scale"],
+        torque_upper_bound=reward_cfg["torque_upper_bound"],
         ftip_cf=ftip_cf,
         ftip_cf_scale=reward_cfg["ftip_cf_scale"],
         ftip_cf_reward_scale=reward_cfg["ftip_cf_reward_scale"]

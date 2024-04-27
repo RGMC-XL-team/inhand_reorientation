@@ -117,4 +117,18 @@ def git_diff_config(name):
     return ret
 
 
+def get_finger_indice_real(ftip_names):
+    ftip_indice_dict = {
+        "finger1": [1, 0, 2, 3],
+        "thumb": [4, 5, 6, 7],
+        "finger2": [9, 8, 10, 11],
+        "finger3": [13, 12, 14, 15],
+    }
+    ftip_indices = []
+    for name in ftip_names:
+        ftip_indices.extend(ftip_indice_dict[name])
+
+    return ftip_indices
+
+
 # EOF

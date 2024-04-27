@@ -13,7 +13,7 @@ import yaml
 from geometry_msgs.msg import Pose
 
 from leap_hardware.ros_utils import *
-from leap_hardware.srv import object_state
+from leap_hardware.srv import object_state, face_pose
 
 DEFAULT_CUBE_FACE_OFFSET_FILE = (
     "/home/yongpeng/competition/RGMC_XL/leap_ws/src/leap_hardware/config/cube_face_offset.yaml"
@@ -64,6 +64,7 @@ class ObjectPosePublisher:
         self.load_cube_face_offset()
 
         # ROS service
+        rospy.Service("face_pose", face_pose, self.get_face_pose_handler)
         rospy.Service("object_state", object_state, self.get_object_state_handler)
 
     def load_cube_tag_config(self):
@@ -86,7 +87,7 @@ class ObjectPosePublisher:
         self.all_tag_ids = list(set(self.all_tag_ids))
         for tag in self.all_tag_ids:
             self.tag_status[tag] = PoseStatus.NOTFOUND
-            self.tag_pose[tag] = Pose()
+            self.tag_pose[tag] = np.eye(4)
 
     def load_cube_face_offset(self):
         cube_face_offset_file = rospy.get_param(
@@ -104,6 +105,9 @@ class ObjectPosePublisher:
                 tags = self.face_to_tag_map[face]
                 for tag in tags:
                     self.tag_to_object_offset[tag] = T_object2april
+
+        T_face2april = xyz_rpy_to_rigidtransform(xyz=[-0.01, 0.01, 0.0], rpy=[0.0, 0.0, -np.pi/2])
+        self.face_to_tag_transform = T_face2april
 
     def lookup_tag_poses_from_tf(self):
         for tag in self.all_tag_ids:
@@ -178,9 +182,24 @@ class ObjectPosePublisher:
     def get_object_state_handler(self, req):
         pos, quat = self.object_pose[:3], self.object_pose[3:]
         return {
-            "pose": np.concatenate((pos, quat[[1, 2, 3, 0]])),  # xyzw
+            "pose": np.concatenate((pos, quat)),  # xyzw
             "velocity": self.object_velocity,
         }
+    
+    def get_face_pose_handler(self, req):
+        tag = self.face_to_tag_map[req.face][0]
+        if self.tag_status[tag] == PoseStatus.UPDATED:
+            T_tag2world = self.tag_pose[tag]
+            T_face2world = np.matmul(T_tag2world, self.face_to_tag_transform)
+            return {
+                "pose": transform_to_posevec(T_face2world),
+                "visible": True
+            }
+        else:
+            return {
+                "pose": np.zeros(7),
+                "visible": False
+            }
 
     def main_loop(self):
         while not rospy.is_shutdown():
@@ -192,6 +211,7 @@ class ObjectPosePublisher:
 
             # publish object pose
             pose_is_updated = self.publish_object_pose(object_pose)
+            # rospy.loginfo("pose updated: {}".format(pose_is_updated))
 
             # update object velocity
             if pose_is_updated:

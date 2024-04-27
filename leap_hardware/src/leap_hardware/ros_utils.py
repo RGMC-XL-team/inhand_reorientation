@@ -67,8 +67,9 @@ def rigidtransform_to_ros_transform(
 
 def rpy_to_mat(rpy):
     assert len(rpy) == 3
-    roll, pitch, yaw = rpy
-    return tf3d.euler.euler2mat(roll, pitch, yaw, "sxyz")
+    # roll, pitch, yaw = rpy
+    # return tf3d.euler.euler2mat(roll, pitch, yaw, "sxyz")
+    return Rot.from_euler("xyz", rpy, degrees=False).as_matrix()
 
 
 def xyz_rpy_to_rigidtransform(xyz, rpy):
@@ -82,7 +83,7 @@ def xyz_rpy_to_rigidtransform(xyz, rpy):
 
 def transform_to_posevec(tf):
     pos = tf[:3, 3]
-    quat = Rot.from_matrix(tf[:3, :3]).as_quat()[[-1, 0, 1, 2]]
+    quat = Rot.from_matrix(tf[:3, :3]).as_quat()        # xyzw
     return np.concatenate([pos, quat])
 
 

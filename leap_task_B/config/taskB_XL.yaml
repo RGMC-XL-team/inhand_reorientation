@@ -1,0 +1,49 @@
+tolerance:
+  xy: 0.02 # the tolerance for xy in meter (default: 0.02)
+  yaw: 0.25 # the tolerance for yaw in rad  (default: 0.25)
+
+time_budget: 10000.0 # the time budget for the task (default: 30.0)
+
+control:
+  action_scale: 0.04167 # action scale for rl policy (default: 1/24)
+  smooth_move_time: 0.8 # time for hand to move from A to B smoothly
+  rl_cube_length: 0.05 # the imagined cube length for rl policy
+  model_based_cube_length: 0.03 # the imagined cube length for model-based policy
+
+object_center_pos: [-0.0592509, 0.03504605, 0.08918902] # the object center position in the world frame (default: [-0.0592509, 0.03504605, 0.08918902])
+
+leap_canonical_pose:
+  - 0.74250548
+  - -1.12588324
+  - 1.27479686
+  - 0.93732102
+  - 0.33139858
+  - 1.7610687
+  - 1.24565105
+  - 1.21650539
+  - 0.32986467
+  - 0.10283528
+  - 1.20423354
+  - 1.03856357
+  - 0.81613652
+  - 1.34689365
+  - 0.8636898
+  - 1.17355378
+
+leap_canonical_pose_v2:
+  - 0.81613652
+  - -1.34689365
+  - 0.8636898
+  - 1.17355378
+  - 0.08139858
+  - 1.7610687
+  - 1.14565105
+  - 1.41650539
+  - 0.32986467
+  - 0.
+  - 1.20423354
+  - 1.03856357
+  - 0.81613652
+  - 1.34689365
+  - 0.8636898
+  - 1.17355378

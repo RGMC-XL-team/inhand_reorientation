@@ -22,7 +22,7 @@ from leap_model_based.leaphand_pinocchio import LeapHandPinocchio
 
 
 class LeapHand:
-    def __init__(self):
+    def __init__(self, use_default=False):
         """Simple python interface to the leap Hand.
 
         The leapClient is a simple python interface to an leap
@@ -54,6 +54,9 @@ class LeapHand:
         self.sim_to_real_indices = np.arange(16).tolist()
         self.real_to_sim_indices = np.arange(16).tolist()
 
+        if use_default:
+            self.set_default()
+
         # joint state publisher
         self.leap_jstate_pub = rospy.Publisher("/joint_states", JointState, queue_size=1)
 
@@ -72,6 +75,50 @@ class LeapHand:
 
     # def _joint_state_callback(self, data):
     # self._joint_state = data
+
+    def set_default(self):
+        self.leap_dof_lower = np.array(
+            [
+                -0.3140,
+                -1.0470,
+                -0.5060,
+                -0.3660,
+                -0.3490,
+                -0.4700,
+                -1.2000,
+                -1.3400,
+                -0.3140,
+                -1.0470,
+                -0.5060,
+                -0.3660,
+                -0.3140,
+                -1.0470,
+                -0.5060,
+                -0.3660,
+            ]
+        )
+        self.leap_dof_upper = np.array(
+            [
+                2.2300,
+                1.0470,
+                1.8850,
+                2.0420,
+                2.0940,
+                2.4430,
+                1.9000,
+                1.8800,
+                2.2300,
+                1.0470,
+                1.8850,
+                2.0420,
+                2.2300,
+                1.0470,
+                1.8850,
+                2.0420,
+            ]
+        )
+        self.sim_to_real_indices = [1, 0, 2, 3, 9, 8, 10, 11, 13, 12, 14, 15, 4, 5, 6, 7]
+        self.real_to_sim_indices = [1, 0, 2, 3, 12, 13, 14, 15, 5, 4, 6, 7, 9, 8, 10, 11]
 
     def sim_to_real(self, values):
         return values[self.sim_to_real_indices]

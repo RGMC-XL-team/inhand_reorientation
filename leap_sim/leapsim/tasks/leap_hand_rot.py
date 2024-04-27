@@ -401,7 +401,11 @@ class LeapHandRot(VecTaskRot):
         for i in range(self.num_leap_hand_dofs):
             self.leap_hand_dof_lower_limits.append(leap_hand_dof_props["lower"][i])
             self.leap_hand_dof_upper_limits.append(leap_hand_dof_props["upper"][i])
-            leap_hand_dof_props["effort"][i] = 0.5
+            if "effortLimit" in self.cfg["env"]["controller"] and \
+                self.cfg["env"]["controller"]["effortLimit"] > 0:
+                leap_hand_dof_props["effort"][i] = self.cfg["env"]["controller"]["effortLimit"]
+            else:
+                leap_hand_dof_props["effort"][i] = 0.5
             leap_hand_dof_props["stiffness"][i] = self.cfg["env"]["controller"]["pgain"]
             leap_hand_dof_props["damping"][i] = self.cfg["env"]["controller"]["dgain"]
             leap_hand_dof_props["friction"][i] = 0.01
@@ -1157,8 +1161,8 @@ class LeapHandRot(VecTaskRot):
         self.asset_files_dict = {
             "simple_tennis_ball": "assets/ball.urdf",
             "cube": "assets/cube.urdf",
-            # 'cube_small': 'assets/cube_50mm.urdf'
-            "cube_small": "assets/cube_45mm.urdf",
+            "cube_50mm": 'assets/cube_50mm.urdf',
+            "cube_45mm": "assets/cube_45mm.urdf",
         }
         for p_id, prim in enumerate(primitive_list):
             if "cuboid" in prim:

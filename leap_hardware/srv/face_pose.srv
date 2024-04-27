@@ -1,0 +1,4 @@
+string face
+---
+float64[] pose
+bool visible

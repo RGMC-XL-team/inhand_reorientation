@@ -60,6 +60,7 @@ add_service_files(
     leap_position.srv
     leap_effort.srv
     object_state.srv
+    face_pose.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -165,6 +166,7 @@ catkin_install_python(PROGRAMS
   scripts/leaphand_node.py
   scripts/leap_joint_state_publisher.py
   scripts/object_pose_publisher.py
+  scripts/leap_data_collector.py
   scripts/test/test_leap_motion.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

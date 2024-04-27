@@ -103,15 +103,7 @@ class LeapHandFlip(VecTaskRot):
         self.torques = gymtorch.wrap_tensor(dof_force_tensor).view(-1, self.num_leap_hand_dofs)
 
         # get fingertip handles
-        fingertip_link_names = ["fingertip_new", "thumb_fingertip_new", "fingertip_2_new", "fingertip_3_new"]
-        self.forceful_fingertip_handles = []
-        leap_hand_handle = self.gym.find_actor_handle(self.envs[0], 'hand')
-        for tip_name in fingertip_link_names:
-            tip_index = self.gym.find_actor_rigid_body_index(self.envs[0],
-                                                            leap_hand_handle,
-                                                            tip_name,
-                                                            gymapi.DOMAIN_SIM)
-            self.forceful_fingertip_handles.append(tip_index)
+        self._get_forceful_fingertip_handles()
 
         self.global_counter = 0
         self.prev_global_counter = 0
@@ -426,6 +418,31 @@ class LeapHandFlip(VecTaskRot):
 
         print(f'Number of fingertips:{self.num_fingertips}  Fingertips:{self.fingertips}')
 
+    def _get_forceful_fingertip_handles(self):
+        """
+            The contact forces for fingertip (rigid root/soft tip) are treated separately
+        """
+        fingertip_link_names = ["fingertip_new", "thumb_fingertip_new", "fingertip_2_new", "fingertip_3_new"]
+        ftip_rigid_link_names = [_name+"_root" for _name in fingertip_link_names]
+        ftip_soft_link_names = [_name+"_tip" for _name in fingertip_link_names]
+        
+        leap_hand_handle = self.gym.find_actor_handle(self.envs[0], 'hand')
+        self.rigid_fingertip_handles, self.soft_fingertip_handles = [], []
+
+        for tip_name in ftip_rigid_link_names:
+            tip_index = self.gym.find_actor_rigid_body_index(self.envs[0],
+                                                            leap_hand_handle,
+                                                            tip_name,
+                                                            gymapi.DOMAIN_SIM)
+            self.rigid_fingertip_handles.append(tip_index)
+
+        for tip_name in ftip_soft_link_names:
+            tip_index = self.gym.find_actor_rigid_body_index(self.envs[0],
+                                                            leap_hand_handle,
+                                                            tip_name,
+                                                            gymapi.DOMAIN_SIM)
+            self.soft_fingertip_handles.append(tip_index)
+
     def _modify_num_observations(self):
         if self.cfg["env"]["include_obj_pose"]:
             self.cfg["env"]["numObservations"] += 11 * self.cfg["env"]["history_length"]
@@ -449,7 +466,11 @@ class LeapHandFlip(VecTaskRot):
         for i in range(self.num_leap_hand_dofs):
             self.leap_hand_dof_lower_limits.append(leap_hand_dof_props["lower"][i])
             self.leap_hand_dof_upper_limits.append(leap_hand_dof_props["upper"][i])
-            leap_hand_dof_props["effort"][i] = 0.5
+            if "effortLimit" in self.cfg["env"]["controller"] and \
+                self.cfg["env"]["controller"]["effortLimit"] > 0:
+                leap_hand_dof_props["effort"][i] = self.cfg["env"]["controller"]["effortLimit"]
+            else:
+                leap_hand_dof_props["effort"][i] = 0.5
             leap_hand_dof_props["stiffness"][i] = self.cfg["env"]["controller"]["pgain"]
             leap_hand_dof_props["damping"][i] = self.cfg["env"]["controller"]["dgain"]
             leap_hand_dof_props["friction"][i] = 0.01
@@ -568,17 +589,22 @@ class LeapHandFlip(VecTaskRot):
 
             obj_friction = 1.0
             if self.randomize_friction:
-                rand_friction = np.random.uniform(self.randomize_friction_lower, self.randomize_friction_upper)
+                rand_rigid_friction = np.random.uniform(self.randomize_rigid_friction_lower, self.randomize_rigid_friction_upper)
+                rand_soft_friction = np.random.uniform(self.randomize_soft_friction_lower, self.randomize_soft_friction_upper)
                 hand_props = self.gym.get_actor_rigid_shape_properties(env_ptr, hand_actor)
-                for p in hand_props:
-                    p.friction = rand_friction
+                
+                for idx_p, p in enumerate(hand_props):
+                    if idx_p in self.ftip_silicon_shape_indices:
+                        p.friction = rand_soft_friction
+                    else:
+                        p.friction = rand_rigid_friction
                 self.gym.set_actor_rigid_shape_properties(env_ptr, hand_actor, hand_props)
 
                 object_props = self.gym.get_actor_rigid_shape_properties(env_ptr, object_handle)
                 for p in object_props:
-                    p.friction = rand_friction
+                    p.friction = rand_rigid_friction
                 self.gym.set_actor_rigid_shape_properties(env_ptr, object_handle, object_props)
-                obj_friction = rand_friction
+                obj_friction = rand_rigid_friction
             self.object_friction_buf[i] = obj_friction
 
             # create goal object
@@ -705,7 +731,7 @@ class LeapHandFlip(VecTaskRot):
 
             for env_id in env_ids:
                 env = self.envs[env_id]
-                handle = self.gym.find_actor_handle(env, "object")
+                handle = self.gym.find_actor_handle(env, "object_cube")
                 prop = self.gym.get_actor_rigid_body_properties(env, handle)
                 for p in prop:
                     p.mass = np.random.uniform(lower, upper)
@@ -713,7 +739,7 @@ class LeapHandFlip(VecTaskRot):
         else:
             for env_id in env_ids:
                 env = self.envs[env_id]
-                handle = self.gym.find_actor_handle(env, "object")
+                handle = self.gym.find_actor_handle(env, "object_cube")
                 prop = self.gym.get_actor_rigid_body_properties(env, handle)
 
         if self.randomize_pd_gains:
@@ -729,6 +755,27 @@ class LeapHandFlip(VecTaskRot):
                 (len(env_ids), self.num_actions),
                 device=self.device,
             ).squeeze(1)
+
+        # TODO(yongpeng): apply these randomization every reset
+        if self.randomize_friction:
+            for env_id in env_ids:
+                env = self.envs[env_id]
+                rand_rigid_friction = np.random.uniform(self.randomize_rigid_friction_lower, self.randomize_rigid_friction_upper)
+                rand_soft_friction = np.random.uniform(self.randomize_soft_friction_lower, self.randomize_soft_friction_upper)
+                hand_actor = self.gym.find_actor_handle(env, "hand")
+                hand_props = self.gym.get_actor_rigid_shape_properties(env, hand_actor)
+                for idx_p, p in enumerate(hand_props):
+                    if idx_p in self.ftip_silicon_shape_indices:
+                        p.friction = rand_soft_friction
+                    else:
+                        p.friction = rand_rigid_friction
+                self.gym.set_actor_rigid_shape_properties(env, hand_actor, hand_props)
+
+                object_handle = self.gym.find_actor_handle(env, "object_cube")
+                object_props = self.gym.get_actor_rigid_shape_properties(env, object_handle)
+                for p in object_props:
+                    p.friction = rand_rigid_friction
+                self.gym.set_actor_rigid_shape_properties(env, object_handle, object_props)
 
         # randomization can happen only at reset time, since it can reset actor positions on GPU
         if self.randomize:
@@ -1006,7 +1053,7 @@ class LeapHandFlip(VecTaskRot):
             dof_pos=self.leap_hand_dof_pos,
             target_dof_pos=self.init_pose_buf,
             dof_pos_mask=self.dof_pos_mask,
-            ftip_cf=self.fingertip_contact_force
+            ftip_cf=(self.fingertip_rigid_force, self.fingertip_soft_force)
             # palm_cf=self.palm_contact_force if self.cfg['env']['reward']['pen_palm_contact'] else None
         )
 
@@ -1036,11 +1083,12 @@ class LeapHandFlip(VecTaskRot):
 
         # compute mean reward values for logging (add prefix 'rew' to enable wandb logging)
         self.extras["rew_rot_reward"] = reward_terms["rot_reward"].mean().item()
-        self.extras["rew_pos_reward"] = reward_terms["pos_reward"].mean().item()
+        # self.extras["rew_pos_reward"] = reward_terms["pos_reward"].mean().item()
         self.extras["rew_dof_pos_reward"] = reward_terms["dof_pos_reward"].mean().item()
         self.extras['rew_ftip_reward'] = reward_terms['ftip_reward'].mean().item()
         self.extras['rew_ftip_cf_reward'] = reward_terms['ftip_cf_reward'].mean().item()
         self.extras["rew_energy_reward"] = reward_terms["energy_reward"].mean().item()
+        self.extras["rew_torque_reward"] = reward_terms["torque_reward"].mean().item()
         self.extras["rew_object_fallen"] = reward_terms["object_fallen"].mean().item()
 
         self.extras["success"] = self.reset_goal_buf.detach().to(self.rl_device).flatten()
@@ -1250,7 +1298,8 @@ class LeapHandFlip(VecTaskRot):
         self.fingertip_vel = self.rigid_body_states[:, self.fingertip_handles][:, :, 7:13]
 
         # update fingertip contact force
-        self.fingertip_contact_force = self.contact_forces[:, self.forceful_fingertip_handles]
+        self.fingertip_rigid_force = self.contact_forces[:, self.rigid_fingertip_handles]
+        self.fingertip_soft_force = self.contact_forces[:, self.soft_fingertip_handles]
 
         # update goal information
         self.goal_pose = self.goal_states[:, 0:7]
@@ -1277,8 +1326,7 @@ class LeapHandFlip(VecTaskRot):
             self.phase = torch.stack([torch.sin(phase_angle), torch.cos(phase_angle)], dim=-1)
 
     def _setup_domain_rand_cfg(self, rand_cfg):
-        # self.randomize_mass = rand_cfg['randomizeMass']
-        self.randomize_mass = False
+        self.randomize_mass = rand_cfg['randomizeMass']
         self.randomize_mass_lower = rand_cfg["randomizeMassLower"]
         self.randomize_mass_upper = rand_cfg["randomizeMassUpper"]
 
@@ -1286,10 +1334,11 @@ class LeapHandFlip(VecTaskRot):
         self.randomize_com_lower = rand_cfg["randomizeCOMLower"]
         self.randomize_com_upper = rand_cfg["randomizeCOMUpper"]
 
-        # self.randomize_friction = rand_cfg['randomizeFriction']
-        self.randomize_friction = False
-        self.randomize_friction_lower = rand_cfg["randomizeFrictionLower"]
-        self.randomize_friction_upper = rand_cfg["randomizeFrictionUpper"]
+        self.randomize_friction = rand_cfg['randomizeFriction']
+        self.randomize_rigid_friction_lower = rand_cfg["randomizeFrictionLower"]
+        self.randomize_rigid_friction_upper = rand_cfg["randomizeFrictionUpper"]
+        self.randomize_soft_friction_lower = rand_cfg["randomizeSiliconFrictionLower"]
+        self.randomize_soft_friction_upper = rand_cfg["randomizeSiliconFrictionUpper"]
 
         self.randomize_scale = rand_cfg["randomizeScale"]
         self.scale_list_init = rand_cfg["scaleListInit"]
@@ -1297,8 +1346,7 @@ class LeapHandFlip(VecTaskRot):
         self.randomize_scale_lower = rand_cfg["randomizeScaleLower"]
         self.randomize_scale_upper = rand_cfg["randomizeScaleUpper"]
 
-        # self.randomize_pd_gains = rand_cfg['randomizePDGains']
-        self.randomize_pd_gains = False
+        self.randomize_pd_gains = rand_cfg['randomizePDGains']
         self.randomize_p_gain_lower = rand_cfg["randomizePGainLower"]
         self.randomize_p_gain_upper = rand_cfg["randomizePGainUpper"]
         self.randomize_d_gain_lower = rand_cfg["randomizeDGainLower"]
@@ -1324,8 +1372,8 @@ class LeapHandFlip(VecTaskRot):
         self.asset_files_dict = {
             "simple_tennis_ball": "assets/ball.urdf",
             "cube": "assets/cube.urdf",
-            # 'cube_small': 'assets/cube_50mm.urdf'
-            "cube_small": "assets/cube_45mm.urdf",
+            "cube_50mm": 'assets/cube_50mm.urdf',
+            "cube_45mm": "assets/cube_45mm.urdf",
         }
         for p_id, prim in enumerate(primitive_list):
             if "cuboid" in prim:
@@ -1383,6 +1431,7 @@ class LeapHandFlip(VecTaskRot):
         hand_asset_options.default_dof_drive_mode = gymapi.DOF_MODE_POS
         self.hand_asset = self.gym.load_asset(self.sim, asset_root, hand_asset_file, hand_asset_options)
 
+        # disable self collisions
         if "leap_hand" in hand_asset_file:
             rsp = self.gym.get_asset_rigid_shape_properties(self.hand_asset)
 
@@ -1401,6 +1450,19 @@ class LeapHandFlip(VecTaskRot):
 
             self.gym.set_asset_rigid_shape_properties(self.hand_asset, rsp)
 
+        # get fingertip shape indices
+        self.ftip_silicon_shape_indices = []
+        _rb_link_indices_dict = self.gym.get_asset_rigid_body_dict(self.hand_asset)
+        for ftip_name in self.cfg["env"]["asset"]["fingertip_names"] + ["palm_lower"]:
+            if ftip_name != "palm_lower":
+                ftip_rb_index = _rb_link_indices_dict[ftip_name + "_tip"]
+            else:
+                ftip_rb_index = _rb_link_indices_dict[ftip_name]
+            ftip_rb_shape_indices = self.gym.get_asset_rigid_body_shape_indices(self.hand_asset)[ftip_rb_index]
+            for i in range(ftip_rb_shape_indices.count):
+                self.ftip_silicon_shape_indices.append(ftip_rb_shape_indices.start + i)
+
+        # get all tip_center frames
         self._get_leap_asset()
 
         # # attach force sensor to fingertips

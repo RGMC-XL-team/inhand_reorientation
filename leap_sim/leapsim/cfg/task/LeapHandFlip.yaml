@@ -16,9 +16,9 @@ physics_engine: ${..physics_engine}
 on_evaluation: False
 
 # IsaacGymEnvs style domain randomization
-randomize: False
+randomize: True # default: True
 randomization_params:
-  frequency: 1200
+  frequency: 600 # default: 1200
   observations:
     range: [0, .002]
     range_correlated: [0, .001]
@@ -37,28 +37,28 @@ randomization_params:
   actor_params:
     hand:
       # color: True
-      dof_properties:
-        damping:
-          range: [0.8, 1.2]
-          operation: "scaling"
-          distribution: "uniform"
-        stiffness:
-          range: [0.8, 1.2]
-          operation: "scaling"
-          distribution: "uniform"
-      rigid_body_properties:
-        mass:
-          range: [0.8, 1.2]
-          operation: "scaling"
-          distribution: "uniform"
-          setup_only: True
+      # dof_properties:
+      #   damping:
+      #     range: [0.8, 1.2]
+      #     operation: "scaling"
+      #     distribution: "uniform"
+      #   stiffness:
+      #     range: [0.8, 1.2]
+      #     operation: "scaling"
+      #     distribution: "uniform"
+      # rigid_body_properties:
+      #   mass:
+      #     range: [0.8, 1.2]
+      #     operation: "scaling"
+      #     distribution: "uniform"
+      #     setup_only: True
       rigid_shape_properties:
-        friction:
-          num_buckets: 100
-          range: [0.3, 2.0]
-          operation: "scaling"
-          distribution: "uniform"
-          same_for_all: True
+        # friction:
+        #   num_buckets: 100
+        #   range: [0.3, 2.0]
+        #   operation: "scaling"
+        #   distribution: "uniform"
+        #   same_for_all: True
         restitution:
           num_buckets: 100
           range: [0.0, 2]
@@ -70,19 +70,19 @@ randomization_params:
       #   operation: "scaling"
       #   distribution: "uniform"
       #   setup_only: True
-      rigid_body_properties:
-        mass:
-          range: [0.3, 1.8]
-          operation: "scaling"
-          distribution: "uniform"
-          setup_only: True
+      # rigid_body_properties:
+      #   mass:
+      #     range: [0.3, 1.8]
+      #     operation: "scaling"
+      #     distribution: "uniform"
+      #     setup_only: True
       rigid_shape_properties:
-        friction:
-          num_buckets: 100
-          range: [0.3, 2.0]
-          operation: "scaling"
-          distribution: "uniform"
-          same_for_all: True
+        # friction:
+        #   num_buckets: 100
+        #   range: [0.3, 2.0]
+        #   operation: "scaling"
+        #   distribution: "uniform"
+        #   same_for_all: True
         restitution:
           num_buckets: 100
           range: [0.0, 2]
@@ -115,7 +115,7 @@ env:
   include_history: True
 
   # observation
-  include_obj_pose: True
+  include_obj_pose: False
   include_obj_target: True
 
   episodeLength: 400 # default: 400
@@ -126,6 +126,7 @@ env:
     controlFrequencyInv: 6 # 20Hz
     pgain: 3
     dgain: 0.1
+    effortLimit: 0.25 # default: 0.95 (0.5 in code)
 
   genGrasps: False
 
@@ -176,7 +177,12 @@ env:
     energy_scale: 1 # 20
     pen_palm_contact: False
     palm_cf_scale: 1
-    ftip_cf_reward_scale: 1
+    ftip_cf_reward_scale: 0.5 # default: 1.0
+
+    # dof torque reward
+    torque_scale: 1
+    clip_torque_reward: True
+    torque_upper_bound: 5
 
     ## only penalize finger1 and finger3
     # aware_ftip_pos_names: ["finger1_tip_center", "finger3_tip_center"]
@@ -190,7 +196,7 @@ env:
         "finger3_tip_center",
       ]
     dof_pos_mask: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-    ftip_cf_scale: [1.0, 1.0, 1.0, 1.0]
+    ftip_cf_scale: [1.0, 2.0, 1.0, 1.0] # default: [1.0, 1.0, 1.0, 1.0]
 
   additional_rewards:
     rotate_finite_diff: 1.25 # 1.25
@@ -220,7 +226,7 @@ env:
     #   override_object_init_x: -0.03 # -0.03 for normal cube (7.5cm)
     #   override_object_init_y: 0.04
     # cube_small:
-    override_object_init_z: 0.585 # 0.5575 for small cube (5cm)
+    override_object_init_z: 0.59 # 0.5575 for small cube (5cm)
     override_object_init_x: -0.05 # -0.04 for small cube (5cm)
     override_object_init_y: 0.04
 
@@ -248,14 +254,16 @@ env:
   randomization:
     # Randomization Property
     randomizeMass: True
-    randomizeMassLower: 0.01
-    randomizeMassUpper: 0.25
+    randomizeMassLower: 0.01 # default: 0.01
+    randomizeMassUpper: 0.05 # default: 0.25
     randomizeCOM: True
     randomizeCOMLower: -0.01
     randomizeCOMUpper: 0.01
     randomizeFriction: True
-    randomizeFrictionLower: 0.3
-    randomizeFrictionUpper: 3.0
+    randomizeFrictionLower: 0.1 # default: 0.3
+    randomizeFrictionUpper: 0.6 # default: 1.0
+    randomizeSiliconFrictionLower: 0.8 # default: 0.8
+    randomizeSiliconFrictionUpper: 2.0 # default: 3.0
     randomizeScale: True
     # if scale_list_init is True, randomizeScaleLower and randomizeScaleUpper is not useful
     scaleListInit: True
@@ -276,7 +284,7 @@ env:
     enableObjFriction: True
 
   object:
-    type: "cube_small" # or 'cube_small'
+    type: "cube_50mm" # or 'cube_small'
     sampleProb: [1.0]
 
   sim_to_real_indices: [1, 0, 2, 3, 9, 8, 10, 11, 13, 12, 14, 15, 4, 5, 6, 7]
@@ -285,6 +293,13 @@ env:
   asset:
     handAsset: "assets/leap_hand/leaphand_high_palm.urdf"
     # handAsset: 'assets/leap_hand/robot.urdf'
+    fingertip_names:
+      [
+        "fingertip_new",
+        "thumb_fingertip_new",
+        "fingertip_2_new",
+        "fingertip_3_new",
+      ]
 
   # set to True if you use camera sensors in the environment
   enableCameraSensors: False

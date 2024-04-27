@@ -9,9 +9,12 @@ from omegaconf import DictConfig, OmegaConf
 
 from leapsim.utils.reformat import omegaconf_to_dict
 
+## PARAMETERS
 # ----------------------------------------
 CONFIG_SAVE_DIR = "./cfg/dict"
-CONFIG_NAME = "leaphand_rot_z_goal"
+PRIMITIVE_NAME = "flip"      # "rot" or "flip"
+CHECKPOINT_NAME = "smooth-fog-124"
+CONFIG_NAME = f"leap-{PRIMITIVE_NAME}-{CHECKPOINT_NAME}"
 # ----------------------------------------
 
 

@@ -1,0 +1,50 @@
+<!-- 
+    This launch file brings up Leap Hand and Realsense Hardware
+    according to the parameters
+ -->
+<launch>
+
+    <!-- Leap Hand -->
+    <include file="$(find leap_hardware)/launch/leap_bringup.launch">
+        <arg name="free_move" value="true" />
+        <arg name="enable_visualization" value="true" />
+    </include>
+
+    <!-- Realsense -->
+    <!-- Start camera -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch" />
+
+    <!-- Start Aruco detection -->
+    <include file="$(find apriltag_ros)/launch/continuous_detection.launch">
+        <arg name="camera_name" value="camera" />
+        <arg name="image_topic" value="color/image_raw" />
+    </include>
+
+    <!-- Publish the calibration result -->
+    <include file="$(find leap_hardware)/launch/leap_calibration_publish.launch">
+        <arg name="enable_hardware" value="false" />
+        <arg name="calibration_file"
+            default="/home/yongpeng/.ros/easy_handeye/my_leap_hand_e2h_calib_eye_on_base.yaml" />
+    </include>
+
+    <!-- Object pose publisher -->
+    <node name="cube_pose_publisher" pkg="leap_hardware" type="object_pose_publisher.py"
+        output="screen">
+        <param name="publish_rate" value="30" />
+        <param name="object_name" value="cube" />
+        <param name="smooth_factor" value="0.25" />
+        <param name="cube_face_offset_file"
+            value="$(find leap_hardware)/config/cube_face_offset.yaml" />
+        <param name="cube_tag_file" value="$(find leap_hardware)/config/tags_cube.yaml" />
+    </node>
+
+    <!-- Data collector -->
+    <node name="leap_data_collector" pkg="leap_hardware" type="leap_data_collector.py"
+        output="screen">
+        <param name="record_freq" value="10" />
+        <param name="record_duration" value="70" />
+        <param name="data_save_path" value="" />
+        <param name="publish_joint_states" value="true" />
+    </node>
+
+</launch>

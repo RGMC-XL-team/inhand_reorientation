@@ -1,5 +1,7 @@
 import numpy as np
+from scipy.spatial.transform import Rotation as Rot
 from matplotlib import pyplot as plt
+import pickle
 
 OBS_IDX_DICT = {
     "dof_pos": (0, 16),
@@ -13,10 +15,9 @@ OBS_IDX_DICT = {
     "action": (105, 121),
 }
 
+MOTOR_IDS = [1, 0, 2, 3, 12, 13, 14, 15, 5, 4, 6, 7, 9, 8, 10, 11]
 
 def plot_joint_position():
-    MOTOR_IDS = [1, 0, 2, 3, 12, 13, 14, 15, 5, 4, 6, 7, 9, 8, 10, 11]
-
     q_command = np.load("./q_command.npy")
     q_reach = np.load("./q_reach.npy")
 
@@ -58,6 +59,35 @@ def plot_object_pose():
     plt.show()
 
 
+def plot_data_collection_result():
+    data_id = 11
+    data = pickle.load(open("./lfd_data.pkl", "rb"))
+    leap_data = np.array(data[data_id]["leap_hand"])
+    obj_data = np.array(data[data_id]["object"])
+    record_time = np.array(data[data_id]["time"])
+
+    print("average interval: {}(s)".format(np.diff(record_time).mean()))
+
+    plt.figure()
+    plt.subplot(1, 2, 1)
+    plt.plot(record_time, obj_data[:, :3], label=["x", "y", "z"])
+    obj_euler = Rot.from_quat(obj_data[:, 3:]).as_euler("xyz", degrees=False)
+    plt.plot(record_time, obj_euler, label=["rx", "ry", "rz"])
+    plt.legend()
+    plt.title("object data")
+
+    plt.figure()
+    for i in range(16):
+        _id = MOTOR_IDS[i]
+        plt.subplot(4, 4, i + 1)
+        plt.plot(record_time, leap_data[:, i], label=f"q_{_id}")
+        plt.legend()
+    plt.title("leap hand data")
+
+    plt.show()
+
+
 if __name__ == "__main__":
     # plot_joint_position()
-    plot_object_pose()
+    # plot_object_pose()
+    plot_data_collection_result()

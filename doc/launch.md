@@ -33,7 +33,19 @@ cd <path-to-leap_sim-pkg>/leapsim
 
 python3 train.py task=<环境，如LeapHandRot> max_iterations=1000 task.env.grasp_cache_name=<手的reset pose distribution，如custom_grasp_cache> wandb_activate=false
 ```
-- 
+- 保存配置
+    - 配置文件保存在`leap_sim/leapsim/cfg/dict`，命名`leap_<task>_<checkpoint>.yaml`
+    - 先修改`leap_sim/leapsim/dump_config.py`中的`PARAMETERS`，再执行脚本（使用与训练一样的hydra命令）
+    - 每次部署得到理想结果后，记得保存配置
+```
+# to run taskB with nested RL agents, we need to dump the hydra configs into .yaml files
+
+task=LeapHandRot                # or LeapHandFlip
+checkpoint=stilted-rain-84      # name of the folder in runs/
+grasp_cache=custom_grasp_cache  # (not importance) name of the grasp cache in cache/
+
+python3 dump_config.py wandb_activate=false num_envs=1 headless=true test=true task="$task" checkpoint=runs/"$checkpoint"/nn/LeapHand.pth task.env.grasp_cache_name="$grasp_cache"
+```
 - 部署
 ```
 # sequential, proprioception input
