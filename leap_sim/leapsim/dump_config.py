@@ -12,8 +12,8 @@ from leapsim.utils.reformat import omegaconf_to_dict
 ## PARAMETERS
 # ----------------------------------------
 CONFIG_SAVE_DIR = "./cfg/dict"
-PRIMITIVE_NAME = "flip"      # "rot" or "flip"
-CHECKPOINT_NAME = "smooth-fog-124"
+PRIMITIVE_NAME = "rot"      # "rot" or "flip"
+CHECKPOINT_NAME = "misunderstood-monkey-130"
 CONFIG_NAME = f"leap-{PRIMITIVE_NAME}-{CHECKPOINT_NAME}"
 # ----------------------------------------
 

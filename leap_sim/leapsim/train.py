@@ -142,6 +142,8 @@ def launch_rlg_hydra(cfg: DictConfig):
     os.makedirs(experiment_dir, exist_ok=True)
     shutil.copyfile("cfg/task/LeapHandRot.yaml", os.path.join(experiment_dir, "LeapHandRot.yaml"))
     shutil.copyfile("cfg/train/LeapHandRotPPO.yaml", os.path.join(experiment_dir, "LeapHandRotPPO.yaml"))
+    shutil.copyfile("cfg/task/LeapHandFlip.yaml", os.path.join(experiment_dir, "LeapHandFlip.yaml"))
+    shutil.copyfile("cfg/train/LeapHandFlipPPO.yaml", os.path.join(experiment_dir, "LeapHandFlipPPO.yaml"))
 
     with open(os.path.join(experiment_dir, "config.yaml"), "w") as f:
         f.write(OmegaConf.to_yaml(cfg))

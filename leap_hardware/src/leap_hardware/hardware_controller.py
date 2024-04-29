@@ -18,11 +18,12 @@ import rospy
 from sensor_msgs.msg import JointState
 
 from leap_hardware.srv import *
-from leap_model_based.leaphand_pinocchio import LeapHandPinocchio
+# from leap_model_based.leaphand_pinocchio import LeapHandPinocchio
+from leap_hardware.leaphand_pinocchio import LeapHandPinocchio
 
 
 class LeapHand:
-    def __init__(self, use_default=False):
+    def __init__(self, use_default=False, enable_publisher=True):
         """Simple python interface to the leap Hand.
 
         The leapClient is a simple python interface to an leap
@@ -58,7 +59,9 @@ class LeapHand:
             self.set_default()
 
         # joint state publisher
-        self.leap_jstate_pub = rospy.Publisher("/joint_states", JointState, queue_size=1)
+        self.enable_publisher = enable_publisher
+        if enable_publisher:
+            self.leap_jstate_pub = rospy.Publisher("/joint_states", JointState, queue_size=1)
 
         # pinocchio FK model
         rospack = rospkg.RosPack()
@@ -169,7 +172,8 @@ class LeapHand:
         joint_position = (self.leap_dof_upper - self.leap_dof_lower) * (joint_position + 1) / 2 + self.leap_dof_lower
 
         self.current_joint_positions = joint_position.copy()
-        self.publish_leap_joint_states()
+        if self.enable_publisher:
+            self.publish_leap_joint_states()
 
         return (joint_position, None)
 

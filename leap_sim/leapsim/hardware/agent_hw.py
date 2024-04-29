@@ -194,7 +194,7 @@ class MultiHardwarePlayer(object):
 
         ## hand reset pose
         # canonical_pose_path = os.path.join(self.package_paths["leap_sim"], "leapsim/cache", "leap_canonical_pose_v2.npy")
-        self.init_pose = _taskB_config["leap_canonical_pose_v2"]
+        self.init_pose = np.array(_taskB_config["leap_canonical_pose_v2"])
 
         ## object should be reset to this position for better manipulation
         # self.object_center_pose = np.array([-0.0542509-0.005, 0.04004605-0.005, 0.08418902+0.005, 0.0, 0.0, 0.0, 1.0])
@@ -323,7 +323,8 @@ class MultiHardwarePlayer(object):
         total_time should be in seconds
         extend_ratio: percentage
         """
-        goal_position = goal_position.copy()
+        start_position = np.array(start_position).copy()
+        goal_position = np.array(goal_position).copy()
         
         # handle disabled fingers
         for finger_name in self.disabled_fingers:

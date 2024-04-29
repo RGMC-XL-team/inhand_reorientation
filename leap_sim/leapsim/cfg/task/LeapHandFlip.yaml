@@ -16,7 +16,7 @@ physics_engine: ${..physics_engine}
 on_evaluation: False
 
 # IsaacGymEnvs style domain randomization
-randomize: True # default: True
+randomize: False # default: True
 randomization_params:
   frequency: 600 # default: 1200
   observations:
@@ -106,7 +106,7 @@ env:
   exec_lag: 1
 
   # goal condition
-  goal_conditioned: True
+  goal_conditioned: False
 
   # observation type
   observation_type: "full_state" # "proprioception" or "full_state"
@@ -126,14 +126,14 @@ env:
     controlFrequencyInv: 6 # 20Hz
     pgain: 3
     dgain: 0.1
-    effortLimit: 0.25 # default: 0.95 (0.5 in code)
+    effortLimit: 0.5 # default: 0.95 (0.5 in code)
 
   genGrasps: False
 
   # clipObservations: 5.0
   clipActions: 1.0
   reset_height_threshold: 0.4
-  grasp_cache_name: "leap_hand_in_palm_cube" # This must be supplied via command line
+  grasp_cache_name: "custom_grasp_cache_v2high" # This must be supplied via command line
   grasp_cache_len: 1024
 
   # Random reset grasping pose
@@ -162,10 +162,12 @@ env:
 
   # Set target motion
   desired_motion:
-    resetGoalType: "random_rot" # "random_quat" or "random_rot"
-    flipAxis: "z" # "x", "y" or "z"
+    resetGoalType: "fixed_rot" # "random_quat", "random_rot" or "fixed_rot"
+    flipAxis: "y" # "x", "y" or "z"
 
   rew_scale: 1.0
+  flip_direction: "out" # "in" or "out"
+  # disabled_fingers: [] # disabled fingers
 
   reward:
     angvelClipMin: -0.25
@@ -175,7 +177,7 @@ env:
     fallDistance: 0.24
     fallPenalty: -10 # -5
     energy_scale: 1 # 20
-    pen_palm_contact: False
+    pen_palm_contact: False # default: False
     palm_cf_scale: 1
     ftip_cf_reward_scale: 0.5 # default: 1.0
 
@@ -226,7 +228,7 @@ env:
     #   override_object_init_x: -0.03 # -0.03 for normal cube (7.5cm)
     #   override_object_init_y: 0.04
     # cube_small:
-    override_object_init_z: 0.59 # 0.5575 for small cube (5cm)
+    override_object_init_z: 0.60 # 0.5575 for small cube (5cm)
     override_object_init_x: -0.05 # -0.04 for small cube (5cm)
     override_object_init_y: 0.04
 
@@ -251,11 +253,12 @@ env:
 
   num_contact_fingers: 0
   baseObjScale: 0.8
+
   randomization:
     # Randomization Property
     randomizeMass: True
     randomizeMassLower: 0.01 # default: 0.01
-    randomizeMassUpper: 0.05 # default: 0.25
+    randomizeMassUpper: 0.09 # default: 0.25
     randomizeCOM: True
     randomizeCOMLower: -0.01
     randomizeCOMUpper: 0.01
@@ -294,12 +297,10 @@ env:
     handAsset: "assets/leap_hand/leaphand_high_palm.urdf"
     # handAsset: 'assets/leap_hand/robot.urdf'
     fingertip_names:
-      [
-        "fingertip_new",
-        "thumb_fingertip_new",
-        "fingertip_2_new",
-        "fingertip_3_new",
-      ]
+      - "fingertip_new"
+      - "thumb_fingertip_new"
+      - "fingertip_2_new"
+      - "fingertip_3_new"
 
   # set to True if you use camera sensors in the environment
   enableCameraSensors: False

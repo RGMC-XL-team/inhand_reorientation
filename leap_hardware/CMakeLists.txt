@@ -168,6 +168,7 @@ catkin_install_python(PROGRAMS
   scripts/object_pose_publisher.py
   scripts/leap_data_collector.py
   scripts/test/test_leap_motion.py
+  scripts/leap_hand_sliders.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

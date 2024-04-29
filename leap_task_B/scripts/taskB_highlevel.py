@@ -205,6 +205,24 @@ class TaskBHighLevel(object):
         if self.info.current_state == TaskBState.DONE:
             self.info.current_face = "E"
         self.execute_new_face("F")
+        if self.info.current_state == TaskBState.DONE:
+            self.info.current_face = "F"
+        self.execute_new_face("B")
+        if self.info.current_state == TaskBState.DONE:
+            self.info.current_face = "B"
+        self.execute_new_face("E")
+        if self.info.current_state == TaskBState.DONE:
+            self.info.current_face = "E"
+        self.execute_new_face("C")
+        if self.info.current_state == TaskBState.DONE:
+            self.info.current_face = "C"
+        self.execute_new_face("E")
+        if self.info.current_state == TaskBState.DONE:
+            self.info.current_face = "E"
+        self.execute_new_face("D")
+        if self.info.current_state == TaskBState.DONE:
+            self.info.current_face = "D"
+        
 
 if __name__ == "__main__":
     rospy.init_node("taskB_highlevel", log_level=rospy.INFO)

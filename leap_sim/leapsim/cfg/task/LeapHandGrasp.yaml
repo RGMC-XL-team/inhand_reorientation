@@ -36,6 +36,9 @@ env:
     randomizeScale: False
     randomizePDGains: False
 
+  finger_dist_threshold: 0.06 # default: 0.1
+  grasp_dof_search_radius: 0.4 # default: 0.4
+
   # canonical_pose: [1.06, -0.58, 1.16, 1.36, 0.48, 1.60, 1.42, 1.31, 0.60, 0.00, 0.74, 1.68, 1.06, 0.58, 1.16, 1.36]     # for small (a=0.05cm)
   # canonical_pose: [0.94, -0.67, 0.56, 1.08, 0.76, 1.79, 1.33, 0.75, 0.20, 0.00, 1.04, 1.10, 1.06, 0.68, 1.17, 0.32]      # for medium (a=0.075cm)
 
@@ -60,6 +63,8 @@ env:
 
   ## cube_small_cache3
   # canonical_pose: [0.7501754, -0.46320356, 1.49415578, 0.69188388, -0.30827156, 1.87151516, 1.40058307, 1.63528238, 0.52161209, -0.08891214, 1.08458318, 1.18889363, 0.46638887, 0.00312673, 1.91906871, 0.2178839]
+
+  ## cube_small_cache4 (generates custom_grasp_cache_v2high)
   canonical_pose:
     [
       0.74250548,
@@ -79,3 +84,24 @@ env:
       0.8636898,
       1.17355378,
     ]
+
+  ## cube_small_cache4 (generates custom_grasp_cache_v3cw)
+  # canonical_pose:
+  #   [
+  #     0.70,
+  #     -0.80,
+  #     1.45,
+  #     0.90,
+  #     -0.25,
+  #     1.55,
+  #     1.35,
+  #     1.35,
+  #     0.25,
+  #     0.0,
+  #     1.30,
+  #     1.05,
+  #     1.15,
+  #     0.65,
+  #     1.00,
+  #     1.05,
+  #   ]

@@ -1,0 +1,40 @@
+<!-- 
+  This file is used to launch leap hand control with sliders.
+ -->
+
+<launch>
+
+    <arg name="controller_start_delay" default="2.0" />
+    <arg name="slider_start_delay" default="5.0" />
+
+    <include file="$(find my_robot_description)/launch/load_leaphand_for_gym.launch" />
+    <include file="$(find leap_hardware)/launch/leap_bringup.launch">
+        <arg name="free_move" value="false" />
+        <arg name="enable_visualization" value="false" />
+    </include>
+
+    <node
+        name="leap_hand_sliders_node"
+        pkg="leap_hardware"
+        type="leap_hand_sliders.py"
+        output="screen"
+        launch-prefix="bash -c 'sleep $(arg controller_start_delay); $0 $@' " />
+
+    <node
+        name="joint_state_publisher_gui"
+        pkg="joint_state_publisher_gui"
+        type="joint_state_publisher_gui"
+        launch-prefix="bash -c 'sleep $(arg slider_start_delay); $0 $@' " />
+
+    <node
+        name="robot_state_publisher"
+        pkg="robot_state_publisher"
+        type="robot_state_publisher" />
+
+    <node
+        name="rviz"
+        pkg="rviz"
+        type="rviz"
+        args="-d $(find my_robot_description)/rviz/view_leaphand.rviz" />
+
+</launch>

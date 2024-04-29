@@ -31,6 +31,7 @@ class LeapHandGrasp(LeapHandRot):
     ):
         super().__init__(cfg, rl_device, sim_device, graphics_device_id, headless)
         self.saved_grasping_states = torch.zeros((0, 23), dtype=torch.float, device=self.device)
+        self.parse_handles()
 
         if "canonical_pose" in cfg["env"]:
             self.canonical_pose = cfg["env"]["canonical_pose"]
@@ -76,6 +77,13 @@ class LeapHandGrasp(LeapHandRot):
         self.x_unit_tensor = to_torch([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.y_unit_tensor = to_torch([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.z_unit_tensor = to_torch([0, 0, 1], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
+
+    def parse_handles(self):
+        rb_links = self.gym.get_asset_rigid_body_names(self.hand_asset)
+        self.fingertips = [x for x in rb_links if 'tip_center' in x]  # ["finger1_tip_center", "thumb_tip_center", "finger2_tip_center", "finger3_tip_center"]
+
+        self.fingertip_handles = [self.gym.find_asset_rigid_body_index(self.hand_asset, name) for name in
+                                  self.fingertips]
 
     def reset_idx(self, env_ids, goal_env_ids=None):
         if self.randomize_mass:
@@ -129,14 +137,16 @@ class LeapHandGrasp(LeapHandRot):
         # reset object
         self.root_state_tensor[self.object_indices[env_ids]] = self.object_init_state[env_ids].clone()
         self.root_state_tensor[self.object_indices[env_ids], 0:2] = self.object_init_state[env_ids, 0:2]
+        # self.root_state_tensor[self.object_indices[env_ids], 1] += 0.01
         self.root_state_tensor[self.object_indices[env_ids], self.up_axis_idx] = self.object_init_state[
             env_ids, self.up_axis_idx
-        ]
+        ] - 0.015
 
         if self.random_reset_method == "original":
-            new_object_rot = randomize_rotation(
-                rand_floats[:, 3], rand_floats[:, 4], self.x_unit_tensor[env_ids], self.y_unit_tensor[env_ids]
-            )
+            # new_object_rot = randomize_rotation(
+            #     rand_floats[:, 3], rand_floats[:, 4], self.x_unit_tensor[env_ids], self.y_unit_tensor[env_ids]
+            # )
+            new_object_rot = torch.zeros((len(env_ids), 4), device=self.device)
             new_object_rot[:] = 0
             new_object_rot[:, -1] = 1
         elif self.random_reset_method == "euler_angle":
@@ -198,8 +208,15 @@ class LeapHandGrasp(LeapHandRot):
             # 4, 8, 12, 16 are fingertip index
             # return number of contact with obj_id
             obj_id = 17
-            query_list = [obj_id * hash_num + 4, obj_id * hash_num + 8, obj_id * hash_num + 12, obj_id * hash_num + 16]
+            query_list = [
+                obj_id * hash_num + self.fingertip_handles[0],
+                obj_id * hash_num + self.fingertip_handles[1],
+                obj_id * hash_num + self.fingertip_handles[2],
+                obj_id * hash_num + self.fingertip_handles[3]
+            ]
             return len(np.intersect1d(query_list, li))
+        
+        import pdb; pdb.set_trace()
 
         assert self.device == "cpu"
         contacts = [self.gym.get_env_rigid_contacts(env) for env in self.envs]
@@ -210,22 +227,27 @@ class LeapHandGrasp(LeapHandRot):
 
         obj_pos = self.rigid_body_states[:, [-1], :3]
         object_quat = self.rigid_body_states[:, [-1], 3:7]
-        finger_pos = self.rigid_body_states[:, [4, 8, 12, 16], :3]
+        finger_pos = self.rigid_body_states[:, self.fingertip_handles, :3]
+
         # the sampled pose need to satisfy (check 1 here):
         # 1) all fingertips is nearby objects
         cond1 = (torch.sqrt(((obj_pos - finger_pos) ** 2).sum(-1)) < self.finger_dist_threshold).all(-1)
-        # 2) at least two fingers are in contact with object
+        # 2) at least two fingers are in contact with object (num_contact_fingers=0 in config)
         cond2 = contact_condition >= self.num_contact_fingers
         # 3) object does not fall after a few iterations
         # 0.645 for internal leap
         # 0.625 for public leap
-        cond3 = torch.greater(obj_pos[:, -1, -1], self.reset_z_threshold)
+        cond3 = torch.bitwise_and(
+            torch.greater(obj_pos[:, -1, -1], self.reset_z_threshold),
+            torch.less(obj_pos[:, -1, -1], 0.65)
+        )
         # 4) object's z-axis should point upwards
         object_euler = get_euler_xyz(object_quat.squeeze(1))
         cond4 = torch.logical_and(
             torch.logical_or(torch.abs(object_euler[0]) <= 0.1, torch.abs(object_euler[0] - 2 * torch.pi) <= 0.1),
             torch.logical_or(torch.abs(object_euler[1]) <= 0.1, torch.abs(object_euler[1] - 2 * torch.pi) <= 0.1),
         )
+
         cond = cond1.float() * cond2.float() * cond3.float() * cond4.float()
         # reset if any of the above condition does not hold
         self.reset_buf[cond < 1] = 1

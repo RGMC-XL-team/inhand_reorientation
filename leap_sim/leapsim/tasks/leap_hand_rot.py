@@ -29,6 +29,8 @@ from isaacgym.torch_utils import (
     unscale,
 )
 
+from leapsim.tasks.rewards.rewards_rot import compute_leaphand_reward
+
 from .base.vec_task import VecTaskRot
 
 
@@ -62,6 +64,9 @@ class LeapHandRot(VecTaskRot):
         self.evaluate = self.cfg["on_evaluation"]
 
         self._modify_num_observations()
+        self._modify_num_actions()
+        self.reward_cfg = self.cfg["env"]["reward"].copy()
+        self.reward_cfg.update(self.cfg["env"]["additional_rewards"])
         super().__init__(cfg, rl_device, sim_device, graphics_device_id, headless)
 
         self.debug_viz = self.cfg["env"]["enableDebugVis"]
@@ -127,10 +132,17 @@ class LeapHandRot(VecTaskRot):
         else:
             assert self.save_init_pose
 
-        self.rot_axis_buf = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float)
+        # self.rot_axis_buf = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float)
+        desired_rotation_direction = self.cfg["env"]["rotate_direction"]
+        assert desired_rotation_direction in ["cw", "ccw"]
+        if desired_rotation_direction == "cw":
+            self.rot_axis_buf = torch.tensor([0., 0., -1.], device=self.device, dtype=torch.float).repeat(self.num_envs, 1)
+        elif desired_rotation_direction == "ccw":
+            self.rot_axis_buf = torch.tensor([0., 0., 1.], device=self.device, dtype=torch.float).repeat(self.num_envs, 1)
 
         # useful buffers
         self.init_pose_buf = torch.zeros((self.num_envs, self.num_dofs), device=self.device, dtype=torch.float)
+        self.previous_dof_pos = torch.zeros((self.num_envs, self.num_dofs), device=self.device, dtype=torch.float)
         self.object_init_pose_buf = torch.zeros((self.num_envs, 7), device=self.device, dtype=torch.float)
         self.object_pose_buf = torch.zeros((self.num_envs, 7), device=self.device, dtype=torch.float)
         self.previous_object_rot = torch.zeros((self.num_envs, 4), device=self.device)
@@ -347,11 +359,6 @@ class LeapHandRot(VecTaskRot):
         if "disable_self_collision" not in self.cfg["env"]:
             self.cfg["env"]["disable_self_collision"] = False
 
-        if "rotation_axis" not in self.cfg["env"]:
-            self.rotation_axis = torch.tensor([0.0, 0.0, 1.0])
-        else:
-            self.rotation_axis = torch.tensor(self.cfg["env"]["rotation_axis"])
-
         if "history_length" not in self.cfg["env"]:
             self.cfg["env"]["history_length"] = 3
 
@@ -380,9 +387,32 @@ class LeapHandRot(VecTaskRot):
             (73, 3),
         ]
 
+        # Map finger name to sim indices
+        self.finger_to_sim_index_map = {
+            "finger1": [0, 1, 2, 3],
+            "thumb": [4, 5, 6, 7],
+            "finger2": [8, 9, 10, 11],
+            "finger3": [12, 13, 14, 15]
+        }
+
+        if "disabled_fingers" not in self.cfg["env"]:
+            self.cfg["env"]["disabled_fingers"] = []
+
+        self.enabled_sim_indices, self.disabled_sim_indices = [], []
+        for finger_name in self.cfg["env"]["disabled_fingers"]:
+            self.disabled_sim_indices.extend(self.finger_to_sim_index_map[finger_name])
+        for i in range(16):
+            if i not in self.disabled_sim_indices:
+                self.enabled_sim_indices.append(i)
+
     def _modify_num_observations(self):
         if self.cfg["env"]["include_obj_pose"]:
             self.cfg["env"]["numObservations"] += 7 * self.cfg["env"]["history_length"]
+
+    def _modify_num_actions(self):
+        self.cfg["env"]["numActions"] -= len(self.disabled_sim_indices)
+        assert self.cfg["env"]["numActions"] > 0
+        print("num of actions: {}".format(self.cfg["env"]["numActions"]))
 
     def _create_envs(self, num_envs, spacing, num_per_row):
         self._create_ground_plane()
@@ -518,17 +548,22 @@ class LeapHandRot(VecTaskRot):
 
             obj_friction = 1.0
             if self.randomize_friction:
-                rand_friction = np.random.uniform(self.randomize_friction_lower, self.randomize_friction_upper)
+                rand_rigid_friction = np.random.uniform(self.randomize_rigid_friction_lower, self.randomize_rigid_friction_upper)
+                rand_soft_friction = np.random.uniform(self.randomize_soft_friction_lower, self.randomize_soft_friction_upper)
                 hand_props = self.gym.get_actor_rigid_shape_properties(env_ptr, hand_actor)
-                for p in hand_props:
-                    p.friction = rand_friction
+                
+                for idx_p, p in enumerate(hand_props):
+                    if idx_p in self.ftip_silicon_shape_indices:
+                        p.friction = rand_soft_friction
+                    else:
+                        p.friction = rand_rigid_friction
                 self.gym.set_actor_rigid_shape_properties(env_ptr, hand_actor, hand_props)
 
                 object_props = self.gym.get_actor_rigid_shape_properties(env_ptr, object_handle)
                 for p in object_props:
-                    p.friction = rand_friction
+                    p.friction = rand_rigid_friction
                 self.gym.set_actor_rigid_shape_properties(env_ptr, object_handle, object_props)
-                obj_friction = rand_friction
+                obj_friction = rand_rigid_friction
             self.object_friction_buf[i] = obj_friction
 
             if self.aggregate_mode > 0:
@@ -540,6 +575,8 @@ class LeapHandRot(VecTaskRot):
         self.object_init_state = to_torch(self.object_init_state, device=self.device, dtype=torch.float).view(
             self.num_envs, 13
         )
+        self.goal_states = self.object_init_state.clone()
+
         self.object_rb_handles = to_torch(self.object_rb_handles, dtype=torch.long, device=self.device)
         self.hand_indices = to_torch(self.hand_indices, dtype=torch.long, device=self.device)
         self.object_indices = to_torch(self.object_indices, dtype=torch.long, device=self.device)
@@ -579,17 +616,21 @@ class LeapHandRot(VecTaskRot):
         if self.randomize_friction:
             for env_id in env_ids:
                 env = self.envs[env_id]
-                rand_friction = np.random.uniform(self.randomize_friction_lower, self.randomize_friction_upper)
+                rand_rigid_friction = np.random.uniform(self.randomize_rigid_friction_lower, self.randomize_rigid_friction_upper)
+                rand_soft_friction = np.random.uniform(self.randomize_soft_friction_lower, self.randomize_soft_friction_upper)
                 hand_actor = self.gym.find_actor_handle(env, "hand")
                 hand_props = self.gym.get_actor_rigid_shape_properties(env, hand_actor)
-                for p in hand_props:
-                    p.friction = rand_friction
+                for idx_p, p in enumerate(hand_props):
+                    if idx_p in self.ftip_silicon_shape_indices:
+                        p.friction = rand_soft_friction
+                    else:
+                        p.friction = rand_rigid_friction
                 self.gym.set_actor_rigid_shape_properties(env, hand_actor, hand_props)
 
                 object_handle = self.gym.find_actor_handle(env, "object_cube")
                 object_props = self.gym.get_actor_rigid_shape_properties(env, object_handle)
                 for p in object_props:
-                    p.friction = rand_friction
+                    p.friction = rand_rigid_friction
                 self.gym.set_actor_rigid_shape_properties(env, object_handle, object_props)
 
         # randomization can happen only at reset time, since it can reset actor positions on GPU
@@ -618,6 +659,10 @@ class LeapHandRot(VecTaskRot):
             self.root_state_tensor[self.object_indices[s_ids], :7] = sampled_pose[:, 16:]
             self.root_state_tensor[self.object_indices[s_ids], 7:13] = 0
             pos = sampled_pose[:, :16]
+
+            # disable fingers by reset motors to zero positions
+            pos[:, self.disabled_sim_indices] = 0
+
             self.leap_hand_dof_pos[s_ids, :] = pos
             self.leap_hand_dof_vel[s_ids, :] = 0
             self.prev_targets[s_ids, : self.num_leap_hand_dofs] = pos
@@ -835,7 +880,7 @@ class LeapHandRot(VecTaskRot):
         if self.cfg["env"]["obs_mask"] is not None:
             self.obs_buf = self.obs_buf * torch.tensor(self.cfg["env"]["obs_mask"], device=self.device)[None, :]
 
-    def compute_reward(self, actions):
+    def compute_reward_old(self, actions):
         self.rot_axis_buf[:, -1] = -1
         # pose diff penalty
         pose_diff_penalty = ((self.leap_hand_dof_pos - self.init_pose_buf) ** 2).sum(-1)
@@ -906,6 +951,51 @@ class LeapHandRot(VecTaskRot):
             )
             if self.env_evaluated >= self.max_evaluate_envs:
                 exit()
+
+    def compute_reward(self, actions):
+        res = compute_leaphand_reward(
+            self.reset_buf,
+            self.progress_buf,
+            self.max_episode_length,
+            self.object_pos,
+            self.goal_pos,
+            self.object_rot,
+            self.reward_cfg,
+            self.actions,
+            self.object_linvel,
+            self.object_angvel,
+            self.object_angvel_finite_diff,
+            self.rot_axis_buf,
+            self.leap_hand_dof_vel,
+            self.dof_vel_finite_diff,
+            self.torques,
+            dof_pos=self.leap_hand_dof_pos,
+            target_dof_pos=self.init_pose_buf,
+            dof_pos_mask=None,
+        )
+
+        self.rew_buf[:] = res[0] * self.cfg["env"]["rew_scale"]
+        self.done_buf[:] = res[1]
+        self.reset_buf[:] = res[2]
+        self.progress_buf[:] = res[3]
+        abs_roll_x = res[4]
+        abs_pitch_y = res[5]
+        reward_terms = res[6]
+        timeout_envs = res[7]
+
+        self.extras["rew_rot_reward"] = reward_terms["rot_reward"].mean().item()
+        self.extras["rew_obj_linvel_reward"] = reward_terms["obj_linvel_penalty"].mean().item()
+        self.extras['rew_dof_pos_reward'] = reward_terms['dof_pos_reward'].mean().item()
+        self.extras['rew_energy_reward'] = reward_terms['energy_reward'].mean().item()
+        self.extras["rew_torque_reward"] = reward_terms["torque_reward"].mean().item()
+        self.extras["rew_object_fallen"] = reward_terms["object_fallen"].mean().item()
+
+        self.extras["roll_angvel"] = self.object_angvel[:, 0].mean().item()
+        self.extras["pitch_angvel"] = self.object_angvel[:, 1].mean().item()
+        self.extras["abs_roll_angle"] = abs_roll_x.mean().item()
+        self.extras["abs_pitch_angle"] = abs_pitch_y.mean().item()
+        self.extras["yaw_angvel"] = self.object_angvel[:, 2].mean().item()
+        self.extras["yaw_finite_diff"] = self.object_angvel_finite_diff[:, 2].mean().item()
 
     def post_physics_step(self):
         self.progress_buf += 1
@@ -997,7 +1087,16 @@ class LeapHandRot(VecTaskRot):
         if hasattr(self, "actions_list"):
             actions = self.actions_list[self.global_counter - 1].repeat((self.num_envs, 1))
 
+        # disable fingers by zeroing the actions
+        full_actions = torch.zeros((self.num_envs, 16), dtype=torch.float, device=self.device)
+        full_actions[:, self.enabled_sim_indices] = actions.clone()
+        actions = full_actions.clone()
+
         actions = torch.clamp(actions, -1.0, 1.0)
+
+        # # disable fingers by zeroing the actions (deprecated)
+        # actions[:, self.disabled_sim_indices] = 0
+
         self.actions = actions.clone().to(self.device)
         self.actions *= self.actions_mask
 
@@ -1097,6 +1196,9 @@ class LeapHandRot(VecTaskRot):
         self.object_linvel = self.root_state_tensor[self.object_indices, 7:10]
         self.object_angvel = self.root_state_tensor[self.object_indices, 10:13]
 
+        self.goal_pose = self.goal_states[:, 0:7]
+        self.goal_pos = self.goal_states[:, 0:3]
+
         if (
             self.prev_global_counter != self.global_counter
         ):  # This is required since sometimes _refresh_gym is called multiple times within same step
@@ -1106,10 +1208,16 @@ class LeapHandRot(VecTaskRot):
             self.object_rpy = new_object_rpy
             self.prev_global_counter = self.global_counter
 
+            # compute object_angvel finite diff
             dr, dp, dy = euler_from_quaternion(quat_mul(self.object_rot, quat_conjugate(self.previous_object_rot)))
             self.object_angvel_finite_diff = torch.stack([dr, dp, dy], dim=-1)
             self.object_angvel_finite_diff /= self.control_dt * delta_counter
             self.previous_object_rot = self.object_rot.clone()
+
+            # compute dof_vel finite diff
+            delta_dof_pos = self.leap_hand_dof_pos - self.previous_dof_pos
+            self.dof_vel_finite_diff = delta_dof_pos / (self.control_dt * delta_counter)
+            self.previous_dof_pos = self.leap_hand_dof_pos.clone()
 
         if "phase_period" in self.cfg["env"]:
             omega = 2 * math.pi / self.cfg["env"]["phase_period"]
@@ -1126,8 +1234,10 @@ class LeapHandRot(VecTaskRot):
         self.randomize_com_upper = rand_cfg["randomizeCOMUpper"]
 
         self.randomize_friction = rand_cfg['randomizeFriction']
-        self.randomize_friction_lower = rand_cfg["randomizeFrictionLower"]
-        self.randomize_friction_upper = rand_cfg["randomizeFrictionUpper"]
+        self.randomize_rigid_friction_lower = rand_cfg["randomizeFrictionLower"]
+        self.randomize_rigid_friction_upper = rand_cfg["randomizeFrictionUpper"]
+        self.randomize_soft_friction_lower = rand_cfg["randomizeSiliconFrictionLower"]
+        self.randomize_soft_friction_upper = rand_cfg["randomizeSiliconFrictionUpper"]
 
         self.randomize_scale = rand_cfg["randomizeScale"]
         self.scale_list_init = rand_cfg["scaleListInit"]
@@ -1205,7 +1315,7 @@ class LeapHandRot(VecTaskRot):
         hand_asset_options = gymapi.AssetOptions()
         hand_asset_options.flip_visual_attachments = False
         hand_asset_options.fix_base_link = True
-        hand_asset_options.collapse_fixed_joints = True
+        hand_asset_options.collapse_fixed_joints = False
         hand_asset_options.disable_gravity = False
         hand_asset_options.thickness = 0.001
         hand_asset_options.angular_damping = 0.01
@@ -1236,6 +1346,18 @@ class LeapHandRot(VecTaskRot):
                     rsp[i].filter = 1
 
             self.gym.set_asset_rigid_shape_properties(self.hand_asset, rsp)
+
+        # get fingertip shape indices
+        self.ftip_silicon_shape_indices = []
+        _rb_link_indices_dict = self.gym.get_asset_rigid_body_dict(self.hand_asset)
+        for ftip_name in self.cfg["env"]["asset"]["fingertip_names"] + ["palm_lower"]:
+            if ftip_name != "palm_lower":
+                ftip_rb_index = _rb_link_indices_dict[ftip_name + "_tip"]
+            else:
+                ftip_rb_index = _rb_link_indices_dict[ftip_name]
+            ftip_rb_shape_indices = self.gym.get_asset_rigid_body_shape_indices(self.hand_asset)[ftip_rb_index]
+            for i in range(ftip_rb_shape_indices.count):
+                self.ftip_silicon_shape_indices.append(ftip_rb_shape_indices.start + i)
 
         # load object asset
         self.object_asset_list = []

@@ -1,6 +1,7 @@
 rot:
   cw: None
-  ccw: stilted-rain-84
+  # ccw: stilted-rain-84
+  ccw: misunderstood-monkey-130
 flip:
   in: None
   out: smooth-fog-124

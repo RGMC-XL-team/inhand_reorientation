@@ -16,7 +16,7 @@ physics_engine: ${..physics_engine}
 on_evaluation: False
 
 # IsaacGymEnvs style domain randomization
-randomize: True # default: True
+randomize: False # default: True
 randomization_params:
   frequency: 600 # default: 1200
   observations:
@@ -61,8 +61,7 @@ randomization_params:
         #   same_for_all: True
         restitution:
           num_buckets: 100
-          # range: [0.0, 2]
-          range: [1.0, 1.0]
+          range: [0.0, 2]
           operation: "scaling"
           distribution: "uniform"
     object:
@@ -86,8 +85,7 @@ randomization_params:
         #   same_for_all: True
         restitution:
           num_buckets: 100
-          # range: [0.0, 2]
-          range: [1.0, 1.0]
+          range: [0.0, 2]
           operation: "scaling"
           distribution: "uniform"
 
@@ -104,7 +102,8 @@ env:
   # goal condition
   goal_conditioned: False
 
-  episodeLength: 400
+  episodeLength: 100
+  # warmStartLength: 50
   enableDebugVis: False
   aggregateMode: 1
 
@@ -113,14 +112,14 @@ env:
     controlFrequencyInv: 6 # 20Hz
     pgain: 3
     dgain: 0.1
-    effortLimit: 0.25 # default: 0.95 (0.5 in code)
+    effortLimit: 0.5 # default: 0.95 (0.5 in code)
 
   genGrasps: False
 
   clipObservations: 5.0
   clipActions: 1.0
   reset_height_threshold: 0.4
-  grasp_cache_name: "leap_hand_in_palm_cube" # This must be supplied via command line
+  grasp_cache_name: "custom_grasp_cache_v2high" # This must be supplied via command line
   grasp_cache_len: 1024
 
   # Random forces applied to the object
@@ -128,6 +127,10 @@ env:
   randomForceProbScalar: 0.25
   forceDecay: 0.9
   forceDecayInterval: 0.08
+
+  rew_scale: 1.0
+  rotate_direction: "ccw" # "cw" or "ccw"
+  disabled_fingers: [] # disabled fingers
 
   reward:
     angvelClipMin: -0.25
@@ -138,14 +141,21 @@ env:
     torquePenaltyScale: -0.1
     workPenaltyScale: -1.0
 
+    resetWarmStartLength: 30
+    resetWhenTilted: False
+    resetRollPitchThresh: 0.2 # (~6deg)
+
+    successTolerancePos: 1.0
+    fallDistance: 0.24
+
   additional_rewards:
     rotate_finite_diff: 1.25 # 1.25
     object_pos_diff: 0.0 # -0.5
-    object_fallen: -10
+    object_fallen: -20 # default: -10
 
-  override_object_init_z: 0.60 # 0.57 for normal cube (7.5cm)
-  override_object_init_x: -0.05 # -0.03 for normal cube (7.5cm)
-  override_object_init_y: 0.04
+  override_object_init_z: 0.60 # default: 0.60
+  override_object_init_x: -0.05 # default: -0.05
+  override_object_init_y: 0.04 # default: 0.04
 
   canonical_pose:
     - 0.1458
@@ -171,14 +181,16 @@ env:
   randomization:
     # Randomization Property
     randomizeMass: True
-    randomizeMassLower: 0.01
-    randomizeMassUpper: 0.25
+    randomizeMassLower: 0.01 # default: 0.01
+    randomizeMassUpper: 0.09 # default: 0.25
     randomizeCOM: True
     randomizeCOMLower: -0.01
     randomizeCOMUpper: 0.01
     randomizeFriction: True
-    randomizeFrictionLower: 0.3
-    randomizeFrictionUpper: 3.0
+    randomizeFrictionLower: 0.1 # default: 0.3
+    randomizeFrictionUpper: 0.6 # default: 1.0
+    randomizeSiliconFrictionLower: 0.8 # default: 0.8
+    randomizeSiliconFrictionUpper: 2.0 # default: 3.0
     randomizeScale: True
     # if scale_list_init is True, randomizeScaleLower and randomizeScaleUpper is not useful
     scaleListInit: True
@@ -206,7 +218,7 @@ env:
     enableObjFriction: True
 
   object:
-    type: "cube_small" # can be block, egg or pen
+    type: "cube_50mm" # can be block, egg or pen
     sampleProb: [1.0]
 
   sim_to_real_indices: [1, 0, 2, 3, 9, 8, 10, 11, 13, 12, 14, 15, 4, 5, 6, 7]
@@ -219,12 +231,15 @@ env:
     # handAsset: 'assets/leap_hand/wider_hand_export/robot.urdf'
     # handAsset: 'assets/leap_hand/wider_hand_export/robot_modified.urdf'
     ftipRbLinkNames:
-      [
-        "fingertip_new_tip",
-        "thumb_fingertip_new_tip",
-        "fingertip_2_new_tip",
-        "fingertip_3_new_tip",
-      ]
+      - "fingertip_new_tip"
+      - "thumb_fingertip_new_tip"
+      - "fingertip_2_new_tip"
+      - "fingertip_3_new_tip"
+    fingertip_names:
+      - "fingertip_new"
+      - "thumb_fingertip_new"
+      - "fingertip_2_new"
+      - "fingertip_3_new"
 
   # set to True if you use camera sensors in the environment
   enableCameraSensors: False

@@ -15,6 +15,7 @@ import os
 import random
 import xml.etree.ElementTree as ET
 from collections import deque
+import rospy
 import rospkg
 
 import hydra
@@ -34,6 +35,7 @@ from leapsim.utils.rlgames_utils import RLGPUAlgoObserver
 
 from leap_hardware.srv import object_state
 from leap_task_B.leap_grasp_cube import LeapGraspCommander
+from leap_hardware.hardware_controller import LeapHand
 
 class HardwarePlayer:
     def __init__(self, config):
@@ -171,8 +173,6 @@ class HardwarePlayer:
         return grasping_states[idx][:16]  # first 16 are hand dofs, last 16 is object state
 
     def deploy(self):
-        import rospy
-        from hardware_controller import LeapHand
 
         def move_hand_to_pose(leap: LeapHand, start_position: np.ndarray, goal_position: np.ndarray):
             _rate = rospy.Rate(20)

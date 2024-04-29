@@ -19,15 +19,18 @@ def compute_reward(
     fingertip_pos, ftip_pos_mask,
     object_linvel,
     object_angvel,
+    object_angvel_finite_diff,
+    angvel_lower_bound: float,
+    angvel_upper_bound: float,
+    rotation_axis,
     dof_vel,
     dof_torque,
     dof_pos,
     target_dof_pos,
     dof_pos_mask,
     rot_reward_scale: float,
+    rot_continue_reward_scale: float,
     rot_eps: float,
-    pos_reward_scale: float,
-    pos_eps: float,
     dof_pos_reward_scale: float,
     reach_goal_bonus: float,
     fall_dist: float,
@@ -42,7 +45,7 @@ def compute_reward(
     obj_ang_vel_thresh: float,
     action_norm_thresh: float,
     penalize_palm_contact: bool,
-    # palm_cf, palm_cf_scale: float,
+    palm_cf, palm_cf_scale: float,
     clip_energy_reward: bool,
     energy_upper_bound: float,
     clip_torque_reward: bool,
@@ -51,6 +54,7 @@ def compute_reward(
     ftip_cf, ftip_cf_scale, ftip_cf_reward_scale: float
 ):
     num_envs = object_pos.shape[0]
+    rew_device = object_pos.device
 
     # goal mask controls the consideration of (x, y, z) in goal_dist calculation
     # use the mask [1, 1, 0] will lead to fingers lifting the object up
@@ -96,16 +100,14 @@ def compute_reward(
     abs_rot_dist = torch.abs(rot_dist)
     abs_pos_dist = torch.abs(goal_dist)
 
-    # print("[debug] abs_rot_dist: ", abs_rot_dist.sum().item())
-
     # rotation reward
     rot_rew = 1.0 / (abs_rot_dist + rot_eps) * rot_reward_scale
     reward_terms["rot_reward"] = rot_rew
 
-    # # position reward
-    # # pos_rew = -masked_goal_dist * pos_reward_scale
-    # pos_rew = 1.0 / (masked_goal_dist + pos_eps) * pos_reward_scale
-    # reward_terms["pos_reward"] = pos_rew
+    # continuous rotation reward
+    angvel_clipped = torch.clip(object_angvel_finite_diff[:, 1], min=angvel_lower_bound, max=angvel_upper_bound)
+    angvel_clipped *= rotation_axis[:, 1]
+    reward_terms["rot_continue_reward"] = rot_continue_reward_scale * angvel_clipped
 
     # dof pos diff penalty
     if dof_pos_mask is None:
@@ -127,9 +129,11 @@ def compute_reward(
         torque_cost = torch.clamp(torque_cost, max=torque_upper_bound)
     reward_terms["torque_reward"] = -torque_cost * torque_scale
 
-    # if penalize_palm_contact:
-    #     in_contact = torch.abs(palm_cf).sum(-1) > 0.5                       # 0.2
-    #     reward_terms['palm_contact_reward'] = -in_contact.float() * palm_cf_scale
+    if penalize_palm_contact:
+        in_contact = torch.abs(palm_cf).sum(-1) > 0.5                       # 0.2
+        reward_terms['palm_contact_reward'] = -in_contact.float() * palm_cf_scale
+    else:
+        reward_terms['palm_contact_reward'] = torch.zeros(num_envs, dtype=torch.float, device=rew_device)
 
     dof_vel_norm = torch.linalg.norm(dof_vel, dim=-1)
 
@@ -145,15 +149,6 @@ def compute_reward(
 
     # if penalize_palm_contact:
     #     goal_reach = goal_reach & (torch.abs(palm_cf).sum(-1) < 0.5)        # 0.2
-    # goal_reach = goal_reach & (action_norm <= action_norm_thresh)
-    # goal_resets: 1) reset_goal_buf, 2) goal reach?
-
-    # debug success conditions
-    # if len(abs_rot_dist) == 1 and abs_rot_dist.sum() <= success_tolerance:
-    #     print("[debug] dof_vel condition: {0} <= {1}".format(dof_vel_norm.sum().item(), dof_vel_thresh))
-    #     print("[debug] object_linvel condition: {0} <= {1}".format(object_linvel_norm.sum().item(), obj_lin_vel_thresh))
-    #     print("[debug] object_angvel condition: {0} <= {1}".format(object_angvel_norm.sum().item(), obj_ang_vel_thresh))
-    #     print("[debug] action_norm condition: {0} <= {1}".format(action_norm.sum().item(), action_norm_thresh))
 
     goal_resets = torch.where(goal_reach, torch.ones_like(reset_goal_buf), reset_goal_buf)
 
@@ -212,15 +207,18 @@ def compute_leaphand_reward(
     fingertip_pos=None, fingertip_vel=None, ftip_pos_mask=None,
     object_linvel=None,
     object_angvel=None,
+    object_angvel_finite_diff=None,
+    rotation_axis=None,
     dof_vel=None,
     dof_torque=None,
     dof_pos=None,
     target_dof_pos=None,
     dof_pos_mask=None,
-    ftip_cf=None
-    # palm_cf=None
+    ftip_cf=None,
+    palm_cf=None
 ):
     rot_reward_scale = reward_cfg["rotRewardScale"]
+    rot_continue_reward_scale = reward_cfg["rotate_finite_diff"]
     rot_eps = reward_cfg["rotEps"]
     pos_reward_scale = reward_cfg["posRewardScale"]
     pos_eps = reward_cfg["posEps"]
@@ -248,15 +246,18 @@ def compute_leaphand_reward(
         ftip_pos_mask=ftip_pos_mask,
         object_linvel=object_linvel,
         object_angvel=object_angvel,
+        object_angvel_finite_diff=object_angvel_finite_diff,
+        angvel_lower_bound=reward_cfg["angvelClipMin"],
+        angvel_upper_bound=reward_cfg["angvelClipMax"],
+        rotation_axis=rotation_axis,
         dof_vel=dof_vel,
         dof_torque=dof_torque,
         dof_pos=dof_pos,
         target_dof_pos=target_dof_pos,
         dof_pos_mask=dof_pos_mask,
         rot_reward_scale=rot_reward_scale,
+        rot_continue_reward_scale=rot_continue_reward_scale,
         rot_eps=rot_eps,
-        pos_reward_scale=pos_reward_scale,
-        pos_eps=pos_eps,
         dof_pos_reward_scale=dof_pos_reward_scale,
         reach_goal_bonus=reach_goal_bonus,
         fall_dist=fall_dist,
@@ -271,8 +272,8 @@ def compute_leaphand_reward(
         obj_ang_vel_thresh=reward_cfg["obj_ang_vel_thresh"],
         action_norm_thresh=reward_cfg["action_norm_thresh"],
         penalize_palm_contact=penalize_palm_contact,
-        # palm_cf=palm_cf if palm_cf is not None else torch.ones(1),
-        # palm_cf_scale=reward_cfg['palm_cf_scale'],
+        palm_cf=palm_cf,
+        palm_cf_scale=reward_cfg['palm_cf_scale'],
         clip_energy_reward=reward_cfg["clip_energy_reward"],
         energy_upper_bound=reward_cfg["energy_upper_bound"],
         clip_torque_reward=reward_cfg["clip_torque_reward"],

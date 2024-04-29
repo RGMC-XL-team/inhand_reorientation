@@ -39,7 +39,7 @@ class ObjectPosePublisher:
         publish_rate = rospy.get_param("/cube_pose_publisher/publish_rate", 30)
         self.rate = rospy.Rate(publish_rate)
         self.object_tf_name = rospy.get_param("/cube_pose_publisher/object_name", "cube")
-        self.object_tf_smooth_factor = rospy.get_param("/cube_pose_publisher/smooth_factor", 0.25)
+        self.object_tf_smooth_factor = rospy.get_param("/cube_pose_publisher/smooth_factor", 0.1)
 
         self.last_object_tf = np.eye(4)
         self.current_object_tf = self.last_object_tf.copy()
