@@ -134,11 +134,13 @@ class LeapHandRot(VecTaskRot):
 
         # self.rot_axis_buf = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float)
         desired_rotation_direction = self.cfg["env"]["rotate_direction"]
-        assert desired_rotation_direction in ["cw", "ccw"]
+        assert desired_rotation_direction in ["cw", "ccw", "both"]
         if desired_rotation_direction == "cw":
             self.rot_axis_buf = torch.tensor([0., 0., -1.], device=self.device, dtype=torch.float).repeat(self.num_envs, 1)
         elif desired_rotation_direction == "ccw":
             self.rot_axis_buf = torch.tensor([0., 0., 1.], device=self.device, dtype=torch.float).repeat(self.num_envs, 1)
+        elif desired_rotation_direction == "both":
+            self.rot_axis_buf = torch.tensor([0., 0., 0.], device=self.device, dtype=torch.float).repeat(self.num_envs, 1)
 
         # useful buffers
         self.init_pose_buf = torch.zeros((self.num_envs, self.num_dofs), device=self.device, dtype=torch.float)
@@ -588,6 +590,10 @@ class LeapHandRot(VecTaskRot):
         self.hand_indices = to_torch(self.hand_indices, dtype=torch.long, device=self.device)
         self.object_indices = to_torch(self.object_indices, dtype=torch.long, device=self.device)
 
+    def reset_target_rotation_axis(self, env_ids, apply_reset=False):
+        rand_bool = torch_rand_float(0, 1, (len(env_ids), 1), device=self.device) < 0.5
+        self.rot_axis_buf[env_ids, 2] = (2 * rand_bool - 1).to(torch.float).squeeze()
+
     def reset_idx(self, env_ids):
         # if self.randomize_mass:
         #     lower, upper = self.randomize_mass_lower, self.randomize_mass_upper
@@ -645,6 +651,9 @@ class LeapHandRot(VecTaskRot):
             self.apply_randomizations(self.randomization_params)
 
         self.resample_randomizations(env_ids)
+
+        # reset target rotation
+        self.reset_target_rotation_axis(env_ids, apply_reset=True)
 
         # reset rigid body forces
         self.rb_forces[env_ids, :, :] = 0.0
@@ -936,8 +945,8 @@ class LeapHandRot(VecTaskRot):
         self.extras["torques"] = torque_penalty.mean().item()
         self.extras["roll"] = self.object_angvel[:, 0].mean().item()
         self.extras["pitch"] = self.object_angvel[:, 1].mean().item()
-        self.extras["yaw"] = self.object_angvel[:, 2].mean().item()
-        self.extras["yaw_finite_diff"] = self.object_angvel_finite_diff[:, 2].mean().item()
+        self.extras["yaw"] = (self.object_angvel[:, 2]*self.rot_axis_buf[:, 2]).mean().item()
+        self.extras["yaw_finite_diff"] = (self.object_angvel_finite_diff[:, 2] * self.rot_axis_buf[:, 2]).mean().item()
 
         if self.evaluate:
             finished_episode_mask = self.reset_buf == 1

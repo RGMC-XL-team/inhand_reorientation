@@ -129,7 +129,7 @@ env:
   forceDecayInterval: 0.08
 
   rew_scale: 1.0
-  rotate_direction: "ccw" # "cw" or "ccw"
+  rotate_direction: "both" # "cw" or "ccw" or "both"
   disabled_fingers: [] # disabled fingers
 
   reward:
