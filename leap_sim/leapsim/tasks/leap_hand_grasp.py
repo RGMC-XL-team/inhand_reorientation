@@ -29,6 +29,8 @@ class LeapHandGrasp(LeapHandRot):
     def __init__(
         self, cfg, rl_device, sim_device, graphics_device_id, headless, virtual_screen_capture=None, force_render=None
     ):
+        cfg["env"]["forceScale"] = 2.0
+
         super().__init__(cfg, rl_device, sim_device, graphics_device_id, headless)
         self.saved_grasping_states = torch.zeros((0, 23), dtype=torch.float, device=self.device)
         self.parse_handles()
@@ -66,11 +68,31 @@ class LeapHandGrasp(LeapHandRot):
         else:
             self.finger_dist_threshold = 0.1
 
+        if "finger_above_obj_center_z" in cfg["env"]:
+            self.finger_above_obj_center_z = cfg["env"]["finger_above_obj_center_z"]
+        else:
+            self.finger_above_obj_center_z = [-0.1, 0.1]
+
+        if "finger_near_obj_min_num" in cfg["env"]:
+            self.finger_near_obj_min_num = cfg["env"]["finger_near_obj_min_num"]
+        else:
+            self.finger_near_obj_min_num = 4
+
+        if "random_xy_bias_limit" in cfg["env"]:
+            self.random_xy_bias_limit = cfg["env"]["random_xy_bias_limit"]
+        else:
+            self.random_xy_bias_limit = 0.0
+
+        if "fingertip_dist_min" in cfg["env"]:
+            self.fingertip_dist_min = cfg["env"]["fingertip_dist_min"]
+        else:
+            self.fingertip_dist_min = 0.0
+
         if "grasp_cache_len" not in self.cfg["env"]:
             self.cfg["env"]["grasp_cache_len"] = 5e4
 
         self.random_reset_method = self.cfg["env"]["randomGraspMethod"]
-        assert self.random_reset_method in ["euler_angle", "euler_angle_for_flip", "euler_angle_for_rot", "original"]
+        assert self.random_reset_method in ["euler_angle", "euler_angle_for_flip", "euler_angle_for_rot", "original", "rot_free_yaw"]
 
         # self.fix_reset_quat = self.cfg['env']['fix_reset_quat']
 
@@ -137,7 +159,8 @@ class LeapHandGrasp(LeapHandRot):
         # reset object
         self.root_state_tensor[self.object_indices[env_ids]] = self.object_init_state[env_ids].clone()
         self.root_state_tensor[self.object_indices[env_ids], 0:2] = self.object_init_state[env_ids, 0:2]
-        # self.root_state_tensor[self.object_indices[env_ids], 1] += 0.01
+        rand_xy_bias = torch_rand_float(-self.random_xy_bias_limit, self.random_xy_bias_limit, (len(env_ids), 2), device=self.device)
+        self.root_state_tensor[self.object_indices[env_ids], 0:2] += rand_xy_bias
         self.root_state_tensor[self.object_indices[env_ids], self.up_axis_idx] = self.object_init_state[
             env_ids, self.up_axis_idx
         ] - 0.015
@@ -149,6 +172,11 @@ class LeapHandGrasp(LeapHandRot):
             new_object_rot = torch.zeros((len(env_ids), 4), device=self.device)
             new_object_rot[:] = 0
             new_object_rot[:, -1] = 1
+        elif self.random_reset_method == "rot_free_yaw":
+            zero_roll = torch.zeros(len(env_ids),)
+            zero_pitch = torch.zeros(len(env_ids),)
+            random_yaw = torch_rand_float(-1, 1, (len(env_ids), 1), device=self.device).squeeze() * torch.pi
+            new_object_rot = quat_from_euler_xyz(zero_pitch, zero_roll, random_yaw)
         elif self.random_reset_method == "euler_angle":
             new_object_rot = randomize_rotation_from_euler(rand_rpy[:, 0], rand_rpy[:, 1], rand_rpy[:, 2])
         elif self.random_reset_method == "euler_angle_for_rot":
@@ -215,8 +243,6 @@ class LeapHandGrasp(LeapHandRot):
                 obj_id * hash_num + self.fingertip_handles[3]
             ]
             return len(np.intersect1d(query_list, li))
-        
-        import pdb; pdb.set_trace()
 
         assert self.device == "cpu"
         contacts = [self.gym.get_env_rigid_contacts(env) for env in self.envs]
@@ -229,9 +255,18 @@ class LeapHandGrasp(LeapHandRot):
         object_quat = self.rigid_body_states[:, [-1], 3:7]
         finger_pos = self.rigid_body_states[:, self.fingertip_handles, :3]
 
+        # compute pairwise fingertip distance
+        fingertip_pairwise_dist = torch.zeros((self.num_envs, 6), device=self.device)
+        pairwise_counter = 0
+        for i in range(4):
+            for j in range(i+1, 4):
+                fingertip_pairwise_dist[:, pairwise_counter] = torch.norm(finger_pos[:, i, :] - finger_pos[:, j, :], dim=-1)
+                pairwise_counter += 1
+
         # the sampled pose need to satisfy (check 1 here):
-        # 1) all fingertips is nearby objects
-        cond1 = (torch.sqrt(((obj_pos - finger_pos) ** 2).sum(-1)) < self.finger_dist_threshold).all(-1)
+        # 1) at least {finger_near_obj_min_num} fingertips is nearby objects (distance <= {finger_dist_threshold})
+        # cond1 = (torch.sqrt(((obj_pos - finger_pos) ** 2).sum(-1)) < self.finger_dist_threshold).all(-1)
+        cond1 = (torch.sqrt(((obj_pos - finger_pos) ** 2).sum(-1)) < self.finger_dist_threshold).sum(-1) >= self.finger_near_obj_min_num
         # 2) at least two fingers are in contact with object (num_contact_fingers=0 in config)
         cond2 = contact_condition >= self.num_contact_fingers
         # 3) object does not fall after a few iterations
@@ -241,14 +276,21 @@ class LeapHandGrasp(LeapHandRot):
             torch.greater(obj_pos[:, -1, -1], self.reset_z_threshold),
             torch.less(obj_pos[:, -1, -1], 0.65)
         )
-        # 4) object's z-axis should point upwards
+        # 4) object's z-axis should point upwards (the object should not tilt too much)
         object_euler = get_euler_xyz(object_quat.squeeze(1))
         cond4 = torch.logical_and(
             torch.logical_or(torch.abs(object_euler[0]) <= 0.1, torch.abs(object_euler[0] - 2 * torch.pi) <= 0.1),
             torch.logical_or(torch.abs(object_euler[1]) <= 0.1, torch.abs(object_euler[1] - 2 * torch.pi) <= 0.1),
         )
+        # 5) all fingers should not be too high
+        cond5 = torch.logical_and(
+            (((obj_pos[..., 2] + self.finger_above_obj_center_z[0]) - finger_pos[..., 2]) <= 0).all(-1),
+            (((obj_pos[..., 2] + self.finger_above_obj_center_z[1]) - finger_pos[..., 2]) >= 0).all(-1)
+        )
+        # 6) all fingertips should not be too near (avoid collisions)
+        cond6 = (fingertip_pairwise_dist >= self.fingertip_dist_min).all(-1)
 
-        cond = cond1.float() * cond2.float() * cond3.float() * cond4.float()
+        cond = cond1.float() * cond2.float() * cond3.float() * cond4.float() * cond5.float() * cond6.float()
         # reset if any of the above condition does not hold
         self.reset_buf[cond < 1] = 1
         self.reset_buf[self.progress_buf >= self.max_episode_length] = 1

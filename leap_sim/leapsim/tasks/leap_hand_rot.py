@@ -324,7 +324,7 @@ class LeapHandRot(VecTaskRot):
             self.cfg["env"]["leap_hand_start_z"] = 0.5
 
         if "grasp_dof_search_radius" not in self.cfg["env"]:
-            self.cfg["env"]["grasp_dof_search_radius"] = 0.4  # change to 0.5 for more diverse configurations
+            self.cfg["env"]["grasp_dof_search_radius"] = 0.5  # change to 0.5 for more diverse configurations
 
         if "obs_mask" not in self.cfg["env"]:
             self.cfg["env"]["obs_mask"] = None
@@ -534,6 +534,13 @@ class LeapHandRot(VecTaskRot):
                 self.obj_scales.append(obj_scale)
             self.gym.set_actor_scale(env_ptr, object_handle, obj_scale)
 
+            mass_lower, mass_upper = self.randomize_mass_lower, self.randomize_mass_upper
+            if self.randomize_mass:
+                prop = self.gym.get_actor_rigid_body_properties(env_ptr, object_handle)
+                for p in prop:
+                    p.mass = np.random.uniform(mass_lower, mass_upper)
+                self.gym.set_actor_rigid_body_properties(env_ptr, object_handle, prop)
+
             obj_com = [0, 0, 0]
             if self.randomize_com:
                 prop = self.gym.get_actor_rigid_body_properties(env_ptr, object_handle)
@@ -582,21 +589,21 @@ class LeapHandRot(VecTaskRot):
         self.object_indices = to_torch(self.object_indices, dtype=torch.long, device=self.device)
 
     def reset_idx(self, env_ids):
-        if self.randomize_mass:
-            lower, upper = self.randomize_mass_lower, self.randomize_mass_upper
+        # if self.randomize_mass:
+        #     lower, upper = self.randomize_mass_lower, self.randomize_mass_upper
 
-            for env_id in env_ids:
-                env = self.envs[env_id]
-                handle = self.gym.find_actor_handle(env, "object_cube")
-                prop = self.gym.get_actor_rigid_body_properties(env, handle)
-                for p in prop:
-                    p.mass = np.random.uniform(lower, upper)
-                self.gym.set_actor_rigid_body_properties(env, handle, prop)
-        else:
-            for env_id in env_ids:
-                env = self.envs[env_id]
-                handle = self.gym.find_actor_handle(env, "object_cube")
-                prop = self.gym.get_actor_rigid_body_properties(env, handle)
+        #     for env_id in env_ids:
+        #         env = self.envs[env_id]
+        #         handle = self.gym.find_actor_handle(env, "object_cube")
+        #         prop = self.gym.get_actor_rigid_body_properties(env, handle)
+        #         for p in prop:
+        #             p.mass = np.random.uniform(lower, upper)
+        #         self.gym.set_actor_rigid_body_properties(env, handle, prop)
+        # else:
+        #     for env_id in env_ids:
+        #         env = self.envs[env_id]
+        #         handle = self.gym.find_actor_handle(env, "object_cube")
+        #         prop = self.gym.get_actor_rigid_body_properties(env, handle)
 
         if self.randomize_pd_gains:
             self.p_gain[env_ids] = torch_rand_float(
@@ -1088,7 +1095,7 @@ class LeapHandRot(VecTaskRot):
             actions = self.actions_list[self.global_counter - 1].repeat((self.num_envs, 1))
 
         # disable fingers by zeroing the actions
-        full_actions = torch.zeros((self.num_envs, 16), dtype=torch.float, device=self.device)
+        full_actions = torch.zeros((self.num_envs, 16), dtype=torch.float, device=actions.device)
         full_actions[:, self.enabled_sim_indices] = actions.clone()
         actions = full_actions.clone()
 
@@ -1122,6 +1129,7 @@ class LeapHandRot(VecTaskRot):
                 ],
                 device=self.device,
             )
+            
             prob = self.random_force_prob_scalar
             force_indices = (torch.less(torch.rand(self.num_envs, device=self.device), prob)).nonzero()
             self.rb_forces[force_indices, self.object_rb_handles, :] = (

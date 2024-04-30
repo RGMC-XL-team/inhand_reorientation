@@ -27,7 +27,7 @@ def main_display_generated_grasp_cache():
     BOX_SIZE = "0.10"
     NUM_DISPLAYS = 30
     # CACHE_PREFIX = "custom_grasp_cache_v2high"
-    CACHE_PREFIX = "custom_grasp_cache_v3cw"
+    CACHE_PREFIX = "custom_grasp_cache_v4cw"
 
     # This path refers to Pinocchio source code but you can define your own directory here.
     pinocchio_model_dir = join(dirname(dirname(dirname(str(abspath(__file__))))), "assets/leap_hand")

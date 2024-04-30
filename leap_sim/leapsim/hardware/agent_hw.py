@@ -378,20 +378,21 @@ class MultiHardwarePlayer(object):
 
     def reset_object(self, yaw=None):
         """reset object to center position"""
+        self.grasp_commander.set_fingertip_height_bias(0.03)
 
         self.reset_hand()
 
         curr_object_state = np.array(self.object_state_proxy().pose)
         
         # disable fingers based on object position
-        if curr_object_state[0] < -0.06 and curr_object_state[1] > 0.045:
+        if curr_object_state[0] < -0.07 and curr_object_state[1] > 0.05:
             self.disabled_fingers = ["finger1", "finger2"]
         elif curr_object_state[0] > -0.045 and curr_object_state[1] > 0.045:
-            self.disabled_fingers = ["finger1", "thumb"]
-        elif curr_object_state[1] < 0.03:
-            self.disabled_fingers = ["thumb", "finger3"]
+            self.disabled_fingers = ["thumb", "finger2"]
+        elif curr_object_state[0] > -0.045 and curr_object_state[1] <= 0.045:
+            self.disabled_fingers = ["thumb"]
         else:
-            self.disabled_fingers.clear()
+            self.disabled_fingers = ["thumb"]
         
         self.grasp_commander.set_fake_cube_transform_from_pos_quat(pos=curr_object_state[0:3], quat=curr_object_state[3:7])
         self.grasp_pose = self.grasp_commander.solve_hand_grasp_IK(use_saved_ftip_pos=False)
@@ -404,7 +405,10 @@ class MultiHardwarePlayer(object):
             goal_yaw = yaw
         desired_object_quat = get_quat_from_euler([0, 0, goal_yaw])
 
-        desired_object_pose = np.concatenate([self.object_center_pose[0:3].copy(), desired_object_quat])
+        desired_object_pose = np.concatenate(
+            [self.object_center_pose[0:2].copy(),
+             [curr_object_state[2]],
+             desired_object_quat])
         # current_hand_pose = self.grasp_pose.copy()
         self.grasp_commander.set_fake_cube_transform_from_pos_quat(pos=desired_object_pose[0:3], quat=desired_object_pose[3:7])
         self.grasp_pose = self.grasp_commander.solve_hand_grasp_IK(use_saved_ftip_pos=True)
@@ -413,6 +417,7 @@ class MultiHardwarePlayer(object):
         self.reset_hand()
 
     def grasp_object(self):
+        self.grasp_commander.reset_fingertip_height_bias()
         curr_object_state = np.array(self.object_state_proxy().pose)
         self.grasp_commander.set_fake_cube_transform_from_pos_quat(pos=curr_object_state[0:3], quat=curr_object_state[3:7])
         self.grasp_pose = self.grasp_commander.solve_hand_grasp_IK(use_saved_ftip_pos=False)

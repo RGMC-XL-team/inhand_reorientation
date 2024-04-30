@@ -14,7 +14,7 @@
 
     <!-- specify the object type and mounting position -->
     <xacro:arg name="object_type" default="cube_50mm" />
-    <xacro:arg name="object_xyz" default="-0.04 0.04 0.5855" />
+    <xacro:arg name="object_xyz" default="-0.05 0.04 0.59" />
 
 	<xacro:include filename="$(find my_robot_description)/urdf/leap_hand/leap_hand_body.urdf.xacro"/>
     <xacro:leap_hand_body mesh_dir="$(arg mesh_dir)"/>

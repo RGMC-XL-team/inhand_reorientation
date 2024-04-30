@@ -137,14 +137,25 @@ class LeapGraspCommander:
 
             self.leap_viewer.display(_pin_dofs_all)
 
-    def set_cube_length(self, length):
-        """set cube length and re-generate feature points"""
-        self.cube_length = length
+    def re_generate_feature_points(self):
         self.dense_feature_points = generate_dense_feature_points(
             cube_length=self.cube_length,
             fingertip_radius=self.fingertip_radius,
             fingertip_height_bias=self.fingertip_height_bias,
         )
+
+    def set_cube_length(self, length):
+        """set cube length and re-generate feature points"""
+        self.cube_length = length
+        self.re_generate_feature_points()
+
+    def set_fingertip_height_bias(self, height_bias):
+        self.fingertip_height_bias = height_bias
+        self.re_generate_feature_points()
+
+    def reset_fingertip_height_bias(self):
+        self.fingertip_height_bias = FINGERTIP_HEIGHT_BIAS
+        self.re_generate_feature_points()
 
     def set_cube_transform(self, transform):
         self._cube_transform = transform

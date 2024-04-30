@@ -145,7 +145,7 @@ env:
     resetWhenTilted: False
     resetRollPitchThresh: 0.2 # (~6deg)
 
-    successTolerancePos: 1.0
+    successTolerancePos: 0.03
     fallDistance: 0.24
 
   additional_rewards:
@@ -153,7 +153,7 @@ env:
     object_pos_diff: 0.0 # -0.5
     object_fallen: -20 # default: -10
 
-  override_object_init_z: 0.60 # default: 0.60
+  override_object_init_z: 0.59 # default: 0.60
   override_object_init_x: -0.05 # default: -0.05
   override_object_init_y: 0.04 # default: 0.04
 

@@ -8,9 +8,9 @@ control:
   action_scale: 0.04167 # action scale for rl policy (default: 1/24)
   smooth_move_time: 0.8 # time for hand to move from A to B smoothly
   rl_cube_length: 0.05 # the imagined cube length for rl policy
-  model_based_cube_length: 0.03 # the imagined cube length for model-based policy
+  model_based_cube_length: 0.025 # the imagined cube length for model-based policy
 
-object_center_pos: [-0.0592509, 0.03504605, 0.08918902] # the object center position in the world frame (default: [-0.0592509, 0.03504605, 0.08918902])
+object_center_pos: [-0.0592509, 0.02004605, 0.08418902] # the object center position in the world frame (default: [-0.0592509, 0.03504605, 0.08918902])
 
 leap_canonical_pose:
   - 0.74250548
