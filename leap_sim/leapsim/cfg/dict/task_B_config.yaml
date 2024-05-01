@@ -1,7 +1,8 @@
 rot:
-  cw: None
+  cw: chocolate-lake-144
   # ccw: stilted-rain-84
   ccw: misunderstood-monkey-130
 flip:
   in: None
   out: smooth-fog-124
+  # out: rare-rain-27

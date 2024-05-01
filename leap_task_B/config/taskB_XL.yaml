@@ -10,7 +10,8 @@ control:
   rl_cube_length: 0.05 # the imagined cube length for rl policy
   model_based_cube_length: 0.025 # the imagined cube length for model-based policy
 
-object_center_pos: [-0.0592509, 0.02004605, 0.08418902] # the object center position in the world frame (default: [-0.0592509, 0.03504605, 0.08918902])
+# object_center_pos: [-0.0592509, 0.02004605, 0.08418902] # the object center position in the world frame (default: [-0.0592509, 0.03504605, 0.08918902])
+object_center_pos: [-0.05, 0.02004605, 0.08418902]
 
 leap_canonical_pose:
   - 0.74250548

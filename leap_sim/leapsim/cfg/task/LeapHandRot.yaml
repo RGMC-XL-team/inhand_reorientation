@@ -97,7 +97,7 @@ env:
   envSpacing: 0.25
   phase_period: 2
   exec_lag: 1
-  include_obj_pose: false # default: true
+  include_obj_pose: true # default: true
 
   # goal condition
   goal_conditioned: False
@@ -119,7 +119,7 @@ env:
   clipObservations: 5.0
   clipActions: 1.0
   reset_height_threshold: 0.4
-  grasp_cache_name: "custom_grasp_cache_v2high" # This must be supplied via command line
+  grasp_cache_name: "custom_grasp_cache_v4cw" # This must be supplied via command line
   grasp_cache_len: 1024
 
   # Random forces applied to the object
@@ -137,7 +137,7 @@ env:
     angvelClipMax: 0.25
     rotateRewardScale: 0.0
     objLinvelPenaltyScale: -0.3
-    poseDiffPenaltyScale: -0.1
+    poseDiffPenaltyScale: -0.2 # default: -0.1
     torquePenaltyScale: -0.1
     workPenaltyScale: -1.0
 
@@ -151,7 +151,7 @@ env:
   additional_rewards:
     rotate_finite_diff: 1.25 # 1.25
     object_pos_diff: 0.0 # -0.5
-    object_fallen: -20 # default: -10
+    object_fallen: -10 # default: -10
 
   override_object_init_z: 0.59 # default: 0.60
   override_object_init_x: -0.05 # default: -0.05

@@ -40,10 +40,11 @@ from leap_hardware.hardware_controller import LeapHand
 class HardwarePlayer:
     def __init__(self, config):
         self.config = omegaconf_to_dict(config)
+        self.device = "cuda"
+
         self.set_defaults()
         self.action_scale = 1 / 24
         self.actions_num = 16
-        self.device = "cuda"
 
         self.debug_viz = self.config["task"]["env"]["enableDebugVis"]
 
@@ -149,17 +150,35 @@ class HardwarePlayer:
         self.fig.canvas.blit(self.fig.bbox)
 
     def set_defaults(self):
+        # include history because the input is a sequence
         if "include_history" not in self.config["task"]["env"]:
             self.config["task"]["env"]["include_history"] = True
 
-        if "include_targets" not in self.config["task"]["env"]:
-            self.config["task"]["env"]["include_targets"] = True
-
+        # encode last 3 frames by default
         if "history_length" not in self.config["task"]["env"]:
             self.config["task"]["env"]["history_length"] = 3
 
+        # include targets to encode contact information
+        if "include_targets" not in self.config["task"]["env"]:
+            self.config["task"]["env"]["include_targets"] = True
+
+        # include object target only when needed
         if "include_obj_target" not in self.config["task"]["env"]:
             self.config["task"]["env"]["include_obj_target"] = False
+
+        # include pbject pose only when needed
+        if "include_obj_pose" not in self.config["task"]["env"]:
+            self.config["task"]["env"]["include_obj_pose"] = False
+        self.palm_height_z_sim = 0.5
+        self.object_pose_bias = torch.tensor(
+            [0.0, 0.0, self.palm_height_z_sim, 0.0, 0.0, 0.0, 0.0],
+            dtype=torch.float, device=self.device).unsqueeze(0)
+        
+        # include rotation axis only when needed
+        if self.config["task"]["env"]["rotate_direction"] == "both":
+            self.config["task"]["env"]["include_rot_axis"] = True
+        else:
+            self.config["task"]["env"]["include_rot_axis"] = False
 
     def fetch_grasp_state(self, s=1.0):
         self.grasp_cache_name = self.config["task"]["env"]["grasp_cache_name"]
@@ -188,6 +207,9 @@ class HardwarePlayer:
         self.goal_rot = quat_from_euler_xyz(
             torch.zeros(1), torch.tensor(flip_pitch_target), torch.zeros(1)
         ).to(self.device)
+        # generate object rotation target
+        rot_z_axis_target = 1.0
+        self.rot_axis = torch.tensor([0.0, 0.0, rot_z_axis_target], dtype=torch.float, device=self.device).unsqueeze(0)
 
         # try to set up rospy
         num_obs = self.config["task"]["env"]["numObservations"]
@@ -258,8 +280,20 @@ class HardwarePlayer:
             if self.config["task"]["env"]["include_targets"]:
                 obs_buf = torch.cat([obs_buf, prev_target.clone()], dim=-1)
 
+            if self.config["task"]["env"]["include_obj_pose"]:
+                object_pose = torch.tensor(curr_object_state, dtype=torch.float, device=self.device).unsqueeze(0)
+                object_pose += self.object_pose_bias.clone()
+                obs_buf = torch.cat([obs_buf, object_pose.reshape(1, 7)], dim=-1)
+
+            ## Direction Control
+            # ----------------------------------------
+            # for FLIP
             if self.config["task"]["env"]["include_obj_target"]:
                 obs_buf = torch.cat([obs_buf, self.goal_rot.clone()], dim=-1)
+            # for ROT
+            if self.config["task"]["env"]["include_rot_axis"]:
+                obs_buf = torch.cat([obs_buf, self.rot_axis[:, [2]].clone()], dim=-1)
+            # ----------------------------------------
 
             if "phase_period" in self.config["task"]["env"]:
                 phase = torch.tensor([[0.0, 1.0]], device=self.device)
@@ -329,6 +363,7 @@ class HardwarePlayer:
             # get o_{t+1}
             obses, _ = leap.poll_joint_position()
             obses = torch.from_numpy(obses.astype(np.float32)).cuda()
+            curr_object_state = self.object_state_proxy().pose
 
             # obs_buf_list.append(obses.cpu().numpy().squeeze())
             cur_obs_buf = unscale(obses, self.leap_dof_lower, self.leap_dof_upper)[None]
@@ -373,8 +408,20 @@ class HardwarePlayer:
             if self.config["task"]["env"]["include_targets"]:
                 obs_buf = torch.cat([obs_buf, target.clone()], dim=-1)
 
+            if self.config["task"]["env"]["include_obj_pose"]:
+                object_pose = torch.tensor(curr_object_state, dtype=torch.float, device=self.device).unsqueeze(0)
+                object_pose += self.object_pose_bias.clone()
+                obs_buf = torch.cat([obs_buf, object_pose.reshape(1, 7)], dim=-1)
+
+            ## Direction Control
+            # ----------------------------------------
+            # for FLIP
             if self.config["task"]["env"]["include_obj_target"]:
                 obs_buf = torch.cat([obs_buf, self.goal_rot.clone()], dim=-1)
+            # for ROT
+            if self.config["task"]["env"]["include_rot_axis"]:
+                obs_buf = torch.cat([obs_buf, self.rot_axis[:, [2]].clone()], dim=-1)
+            # ----------------------------------------
 
             if "phase_period" in self.config["task"]["env"]:
                 omega = 2 * math.pi / self.config["task"]["env"]["phase_period"]
@@ -396,6 +443,12 @@ class HardwarePlayer:
     def _modify_num_observations(self):
         if self.config["task"]["env"]["include_obj_target"]:
             self.config["task"]["env"]["numObservations"] += 4 * self.config["task"]["env"]["history_length"]
+
+        if self.config["task"]["env"]["include_obj_pose"]:
+            self.config["task"]["env"]["numObservations"] += 7 * self.config["task"]["env"]["history_length"]
+
+        if self.config["task"]["env"]["include_rot_axis"]:
+            self.config["task"]["env"]["numObservations"] += 1 * self.config["task"]["env"]["history_length"]
 
     def restore(self):
         rlg_config_dict = self.config["train"]

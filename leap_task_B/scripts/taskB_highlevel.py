@@ -109,6 +109,35 @@ class TaskBHighLevel(object):
             return True
         else:
             return False
+        
+    def _check_rotate_start_condition(self):
+        """Check if the object is centered for rotation"""
+        if self._check_current_visible() == False:
+            return False
+        if np.linalg.norm(self.info.object_local_pose.xy() - self.object_center_pos[0:2]) < \
+            self.info.tolerance_xy:
+            rospy.loginfo(f"Object is centered for flipping!")
+            return True
+        else:
+            return False
+        
+    def _check_should_rotate_cw(self):
+        """Check if the object should rotate clockwise"""
+        _current_yaw = self.info.object_local_pose.yaw()
+        _desired_yaw = self.info.desired_yaw
+        _diff = _desired_yaw - _current_yaw
+        
+        if _diff > 0:
+            anticlockwise_angle = _diff
+            clockwise_angle = 2 * np.pi - _diff
+        else:
+            anticlockwise_angle = 2 * np.pi + _diff
+            clockwise_angle = -_diff
+        
+        if clockwise_angle < anticlockwise_angle:
+            return True
+        else:
+            return False
 
     def execute_current_face(self):
         self.info.current_state = TaskBState.WAIT
@@ -135,12 +164,24 @@ class TaskBHighLevel(object):
                 if self._check_rotate_terminate_condition():
                     """Just skip rotating the object"""
                     self.info.current_state = TaskBState.BEFORE_FLIP
-                else:
+                elif self._check_rotate_start_condition():
                     """Configure the rotation policy here"""
-                    self.info.running_policy = "ROT_CCW"
-                    goal = RunPolicyGoal(policy_name="ROT_CCW")
+                    if self._check_should_rotate_cw():
+                        self.info.running_policy = "ROT_CW"
+                        goal = RunPolicyGoal(policy_name="ROT_CW")
+                        self._action_client.send_goal(goal)
+                        self.info.current_state = TaskBState.ROTATE_CW
+                    else:
+                        self.info.running_policy = "ROT_CCW"
+                        goal = RunPolicyGoal(policy_name="ROT_CCW")
+                        self._action_client.send_goal(goal)
+                        self.info.current_state = TaskBState.ROTATE_CCW
+                else:
+                    """Reset the object to the center"""
+                    self.info.running_policy = "RESET_OBJECT"
+                    goal = RunPolicyGoal(policy_name="RESET_OBJECT")
                     self._action_client.send_goal(goal)
-                    self.info.current_state = TaskBState.ROTATE_CCW
+                    self._action_client.wait_for_result()
 
             elif self.info.current_state == TaskBState.ROTATE_CW or \
                 self.info.current_state == TaskBState.ROTATE_CCW:

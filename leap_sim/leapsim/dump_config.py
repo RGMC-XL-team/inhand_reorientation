@@ -13,7 +13,7 @@ from leapsim.utils.reformat import omegaconf_to_dict
 # ----------------------------------------
 CONFIG_SAVE_DIR = "./cfg/dict"
 PRIMITIVE_NAME = "rot"      # "rot" or "flip"
-CHECKPOINT_NAME = "misunderstood-monkey-130"
+CHECKPOINT_NAME = "chocolate-lake-144"
 CONFIG_NAME = f"leap-{PRIMITIVE_NAME}-{CHECKPOINT_NAME}"
 # ----------------------------------------
 

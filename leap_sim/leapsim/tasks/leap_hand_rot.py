@@ -370,6 +370,8 @@ class LeapHandRot(VecTaskRot):
 
         if self.cfg["env"]["rotate_direction"] == "both":
             self.cfg["env"]["include_rot_axis"] = True
+        else:
+            self.cfg["env"]["include_rot_axis"] = False
 
         # Multiple rigid shapes correspond to a rigid body, the indices can be found using get_asset_rigid_body_shape_indices
         self.body_shape_indices = [
@@ -838,10 +840,13 @@ class LeapHandRot(VecTaskRot):
             # object_pose_noisy = self.get_obj_pose_noise(self.object_pose)
             # object_pos = object_pose_noisy[:, 0:3]
             # object_rot = object_pose_noisy[:, 3:7]
+            object_pos_centered = self.object_pos.clone() - self.object_init_state[:, 0:3]
+            object_pos_centered[:, 2] = 0   # disable z since nearly the same value
             cur_obs_buf = torch.cat(
                 [
                     cur_obs_buf,
-                    self.object_pos.unsqueeze(1),
+                    # self.object_pos.unsqueeze(1),
+                    object_pos_centered.unsqueeze(1),
                     # self.object_rpy.unsqueeze(1)
                     self.object_rot.unsqueeze(1),
                 ],

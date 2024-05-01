@@ -156,11 +156,12 @@ class MultiHardwarePlayer(object):
                     continue
 
                 checkpoint_name = self.rl_agent_index[task][sub_task]
-                policy_config = yaml.safe_load(
-                    open(os.path.join(self.package_paths["leap_sim"], "leapsim/cfg/dict", \
-                                      f"leap-{task}-{checkpoint_name}.yaml"))
-                )
+                config_yaml_path = os.path.join(self.package_paths["leap_sim"], "leapsim/cfg/dict", \
+                                               f"leap-{task}-{checkpoint_name}.yaml") 
+                policy_config = yaml.safe_load(open(config_yaml_path))
                 self.policy_name_to_config_map[policy_name] = policy_config
+
+                rospy.loginfo(f"Load {policy_name} from {config_yaml_path}!")
 
                 # use information from the very first config
                 if self.hand_asset_name == "":
