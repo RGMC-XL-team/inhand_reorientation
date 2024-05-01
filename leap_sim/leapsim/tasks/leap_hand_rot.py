@@ -368,6 +368,9 @@ class LeapHandRot(VecTaskRot):
             self.cfg["env"]["goal_conditioned"] = False
             self.cfg["env"]["include_obj_target"] = True
 
+        if self.cfg["env"]["rotate_direction"] == "both":
+            self.cfg["env"]["include_rot_axis"] = True
+
         # Multiple rigid shapes correspond to a rigid body, the indices can be found using get_asset_rigid_body_shape_indices
         self.body_shape_indices = [
             (0, 17),
@@ -410,6 +413,8 @@ class LeapHandRot(VecTaskRot):
     def _modify_num_observations(self):
         if self.cfg["env"]["include_obj_pose"]:
             self.cfg["env"]["numObservations"] += 7 * self.cfg["env"]["history_length"]
+        if self.cfg["env"]["include_rot_axis"]:
+            self.cfg["env"]["numObservations"] += 1 * self.cfg["env"]["history_length"]
 
     def _modify_num_actions(self):
         self.cfg["env"]["numActions"] -= len(self.disabled_sim_indices)
@@ -843,6 +848,15 @@ class LeapHandRot(VecTaskRot):
                 dim=-1,
             )
 
+        if self.cfg["env"]["include_rot_axis"]:
+            cur_obs_buf = torch.cat(
+                [
+                    cur_obs_buf,
+                    self.rot_axis_buf[:, [2]].unsqueeze(1),
+                ],
+                dim=-1,
+            )
+
         if self.cfg["env"]["include_obj_scales"]:
             cur_obs_buf = torch.cat(
                 [
@@ -945,8 +959,8 @@ class LeapHandRot(VecTaskRot):
         self.extras["torques"] = torque_penalty.mean().item()
         self.extras["roll"] = self.object_angvel[:, 0].mean().item()
         self.extras["pitch"] = self.object_angvel[:, 1].mean().item()
-        self.extras["yaw"] = (self.object_angvel[:, 2]*self.rot_axis_buf[:, 2]).mean().item()
-        self.extras["yaw_finite_diff"] = (self.object_angvel_finite_diff[:, 2] * self.rot_axis_buf[:, 2]).mean().item()
+        self.extras["yaw_angvel"] = self.object_angvel[:, 2].mean().item()
+        self.extras["yaw_finite_diff"] = self.object_angvel_finite_diff[:, 2].mean().item()
 
         if self.evaluate:
             finished_episode_mask = self.reset_buf == 1
@@ -1010,8 +1024,8 @@ class LeapHandRot(VecTaskRot):
         self.extras["pitch_angvel"] = self.object_angvel[:, 1].mean().item()
         self.extras["abs_roll_angle"] = abs_roll_x.mean().item()
         self.extras["abs_pitch_angle"] = abs_pitch_y.mean().item()
-        self.extras["yaw_angvel"] = self.object_angvel[:, 2].mean().item()
-        self.extras["yaw_finite_diff"] = self.object_angvel_finite_diff[:, 2].mean().item()
+        self.extras["yaw"] = (self.object_angvel[:, 2] * self.rot_axis_buf[:, 2]).mean().item()
+        self.extras["yaw_finite_diff"] = (self.object_angvel_finite_diff[:, 2] * self.rot_axis_buf[:, 2]).mean().item()
 
     def post_physics_step(self):
         self.progress_buf += 1

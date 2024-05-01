@@ -102,7 +102,7 @@ env:
   # goal condition
   goal_conditioned: False
 
-  episodeLength: 100
+  episodeLength: 400
   # warmStartLength: 50
   enableDebugVis: False
   aggregateMode: 1
