@@ -54,6 +54,14 @@ def ros_transform_to_rigidtransform(
     return xyz_rpy_to_rigidtransform(xyz, Rot.from_quat(quat).as_euler("xyz"))
 
 
+def ros_pose_to_rigid_transform(
+    pose: Pose
+):
+    xyz = np.array([pose.position.x, pose.position.y, pose.position.z])
+    quat = np.array([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])
+    return xyz_rpy_to_rigidtransform(xyz, Rot.from_quat(quat).as_euler("xyz"))
+
+
 def rigidtransform_to_ros_transform(
     tf,
     parent_frame="world",
@@ -85,6 +93,12 @@ def transform_to_posevec(tf):
     pos = tf[:3, 3]
     quat = Rot.from_matrix(tf[:3, :3]).as_quat()        # xyzw
     return np.concatenate([pos, quat])
+
+
+def transform_to_pos_rvec(tf):
+    pos = tf[:3, 3]
+    rot = Rot.from_matrix(tf[:3, :3]).as_rotvec()
+    return np.concatenate([pos, rot])
 
 
 def average_quaternions(quaternions):
@@ -136,6 +150,21 @@ def interpolate_two_transforms(tf0, tf1, amount=0.5):
     int_tf = xyz_rpy_to_rigidtransform(int_xyz, int_rpy)
 
     return int_tf
+
+
+def substract_two_transforms(tf0, tf1):
+    """
+    return tf1 - tf0, pos and angle axis
+    """
+    pos_diff = tf1[:3, 3] - tf0[:3, 3]
+
+    quat0 = Quaternion(Rot.from_matrix(tf0[:3, :3]).as_quat()[[-1, 0, 1, 2]])  # xyzw -> wxyz
+    quat1 = Quaternion(Rot.from_matrix(tf1[:3, :3]).as_quat()[[-1, 0, 1, 2]])
+    quat_diff = quat1 * quat0.conjugate
+
+    rot_diff = quat_diff.angle * quat_diff.axis
+
+    return pos_diff, rot_diff
 
 
 def compute_velocity_from_two_transforms(tf_old, tf_new, dt):

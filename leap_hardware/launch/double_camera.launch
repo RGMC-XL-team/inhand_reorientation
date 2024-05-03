@@ -1,0 +1,79 @@
+<!-- 
+    This launch file starts Realsense D405 camera,
+    Realsense D435 camera and Apriltag detection.
+ -->
+<launch>
+    <arg name="camera_0_name" default="camera_d405" />
+    <arg name="camera_0_serial_no" default="130322273850" />
+    <arg name="camera_0_calib_file"
+        default="$(find leap_hardware)/config/rgmc_d405_calib.yaml" />
+
+    <arg name="camera_1_name" default="camera_d435" />
+    <arg name="camera_1_serial_no" default="238222076841" />
+    <arg name="camera_1_calib_file"
+        default="$(find leap_hardware)/config/rgmc_d435_calib.yaml" />
+
+    <group>
+        <!-- Start cameras -->
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no" value="$(arg camera_0_serial_no)" />
+            <arg name="camera" value="$(arg camera_0_name)" />
+        </include>
+
+        <!-- Start Aruco detection -->
+        <include file="$(find leap_hardware)/launch/rgmc_continuous_detection.launch">
+            <arg name="camera_name" value="$(arg camera_0_name)" />
+            <arg name="image_topic" value="color/image_raw" />
+            <arg name="settings_file" default="$(find leap_hardware)/config/settings_d405.yaml" />
+            <arg name="tags_file" default="$(find leap_hardware)/config/tags.yaml" />
+        </include>
+
+        <!-- Publish the calibration result -->
+        <include file="$(find leap_hardware)/launch/leap_calibration_publish.launch">
+            <arg name="enable_hardware" value="false" />
+            <arg name="tracking_base_frame" value="camera_d405_link" />
+            <arg name="calibration_file"
+                default="$(arg camera_0_calib_file)" />
+        </include>
+    </group>
+
+    <group ns="camera_1">
+        <!-- Start cameras -->
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no" value="$(arg camera_1_serial_no)" />
+            <arg name="camera" value="$(arg camera_1_name)" />
+        </include>
+
+        <!-- Start Aruco detection -->
+        <include file="$(find leap_hardware)/launch/rgmc_continuous_detection.launch">
+            <arg name="camera_name" value="$(arg camera_1_name)" />
+            <arg name="image_topic" value="color/image_raw" />
+            <arg name="settings_file" default="$(find leap_hardware)/config/settings_d435.yaml" />
+            <arg name="tags_file" default="$(find leap_hardware)/config/tags.yaml" />
+        </include>
+
+        <!-- Publish the calibration result -->
+        <include file="$(find leap_hardware)/launch/leap_calibration_publish.launch">
+            <arg name="enable_hardware" value="false" />
+            <arg name="tracking_base_frame" value="camera_d435_link" />
+            <arg name="calibration_file"
+                default="$(arg camera_1_calib_file)" />
+        </include>
+    </group>
+
+    <!-- Object pose publisher -->
+    <node name="cube_pose_publisher" pkg="leap_hardware" type="object_pose_publisher.py"
+        output="screen">
+        <param name="publish_rate" value="30" />
+        <param name="enable_second_camera" value="true" />
+        <param name="second_camera_name" value="$(arg camera_1_name)" />
+        <param name="object_name" value="cube" />
+        <!-- <param name="smooth_factor" value="0.25" /> -->
+        <param name="smooth_factor" value="0.1" />
+        <param name="pos_diff_thresh" value="0.02" />
+        <param name="rot_diff_thresh" value="0.25" />
+        <param name="cube_face_offset_file"
+            value="$(find leap_hardware)/config/cube_face_offset.yaml" />
+        <param name="cube_tag_file" value="$(find leap_hardware)/config/tags_cube.yaml" />
+    </node>
+</launch>

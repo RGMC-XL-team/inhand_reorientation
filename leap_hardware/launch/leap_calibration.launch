@@ -2,38 +2,39 @@
     This launch file is used for Leap Hand calibration.
  -->
 
- <launch>
-  
-    <!-- (start your robot's MoveIt! stack, e.g. include its moveit_planning_execution.launch) -->
-    <include file="$(find leap_hardware)/launch/leap_bringup.launch" >
-        <arg name="free_move" value="true"/>
-        <arg name="enable_visualization" value="true"/>
-    </include>
-    
-    <!-- (start your tracking system's ROS driver) -->
-    <include file="$(find realsense2_camera)/launch/rs_camera.launch" />
+<launch>
 
-    <!-- (start the april tag detection stream) -->
-    <include file="$(find apriltag_ros)/launch/continuous_detection.launch" >
-      <arg name="camera_name" value="camera"/>
-      <arg name="image_topic" value="color/image_raw"/>
-    </include>
-  
-    <include file="$(find easy_handeye)/launch/calibrate.launch">
-      <arg name="eye_on_hand" value="false"/>
-      
-      <!-- free move and disable moveit -->
-      <arg name="freehand_robot_movement" value="true"/>
-  
-      <!-- you can choose any identifier, as long as you use the same for publishing the calibration -->
-      <arg name="namespace_prefix" value="my_leap_hand_e2h_calib"/>
-  
-      <!-- fill in the following parameters according to your robot's published tf frames -->
-      <arg name="robot_base_frame" value="palm_lower"/>
-      <arg name="robot_effector_frame" value="fingertip_3"/>
-  
-      <!-- fill in the following parameters according to your tracking system's published tf frames -->
-      <arg name="tracking_base_frame" value="camera_link"/>
-      <arg name="tracking_marker_frame" value="tag_0"/>
-    </include>
-  </launch>
+  <!-- (start your robot's MoveIt! stack, e.g. include its moveit_planning_execution.launch) -->
+  <include file="$(find leap_hardware)/launch/leap_bringup.launch">
+    <arg name="free_move" value="true" />
+    <arg name="enable_visualization" value="true" />
+    <arg name="publish_joint_states" value="true" />
+  </include>
+
+  <!-- (start your tracking system's ROS driver) -->
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch" />
+
+  <!-- (start the april tag detection stream) -->
+  <include file="$(find apriltag_ros)/launch/continuous_detection.launch">
+    <arg name="camera_name" value="camera" />
+    <arg name="image_topic" value="color/image_raw" />
+  </include>
+
+  <include file="$(find easy_handeye)/launch/calibrate.launch">
+    <arg name="eye_on_hand" value="false" />
+
+    <!-- free move and disable moveit -->
+    <arg name="freehand_robot_movement" value="true" />
+
+    <!-- you can choose any identifier, as long as you use the same for publishing the calibration -->
+    <arg name="namespace_prefix" value="my_leap_hand_e2h_calib" />
+
+    <!-- fill in the following parameters according to your robot's published tf frames -->
+    <arg name="robot_base_frame" value="palm_lower" />
+    <arg name="robot_effector_frame" value="fingertip_3" />
+
+    <!-- fill in the following parameters according to your tracking system's published tf frames -->
+    <arg name="tracking_base_frame" value="camera_link" />
+    <arg name="tracking_marker_frame" value="tag_0" />
+  </include>
+</launch>

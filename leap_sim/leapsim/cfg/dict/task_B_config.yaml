@@ -1,8 +1,11 @@
 rot:
   cw: chocolate-lake-144
   # ccw: stilted-rain-84
-  ccw: misunderstood-monkey-130
+  # ccw: misunderstood-monkey-130
+  ccw: feasible-valley-160
 flip:
   in: None
   out: smooth-fog-124
-  # out: rare-rain-27
+  # out: rare-rain-27 # yongyi's first version
+  # out: young-monkey-35 # yongyi's second version
+  # out: unique-bush-40 # yongyi's third version

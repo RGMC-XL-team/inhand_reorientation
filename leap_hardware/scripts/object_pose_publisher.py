@@ -13,8 +13,10 @@ import tf2_ros
 import yaml
 from geometry_msgs.msg import Pose
 
-import leap_hardware.ros_utils as rutil
+from leap_hardware import ros_utils as rutil 
+from leap_hardware.mean_std import RunningMeanCovariance
 from leap_hardware.srv import object_state, face_pose
+from apriltag_ros.msg import AprilTagDetectionArray
 
 DEFAULT_CUBE_FACE_OFFSET_FILE = (
     "/home/yongpeng/competition/RGMC_XL/leap_ws/src/leap_hardware/config/cube_face_offset.yaml"
@@ -39,8 +41,18 @@ class ObjectPosePublisher:
 
         publish_rate = rospy.get_param("/cube_pose_publisher/publish_rate", 30)
         self.rate = rospy.Rate(publish_rate)
+
+        self.enable_second_camera = rospy.get_param("/cube_pose_publisher/enable_second_camera", False)
+        if self.enable_second_camera:
+            self.second_camera_name = rospy.get_param("/cube_pose_publisher/second_camera_name", "camera_d435")
+
         self.object_tf_name = rospy.get_param("/cube_pose_publisher/object_name", "cube")
         self.object_tf_smooth_factor = rospy.get_param("/cube_pose_publisher/smooth_factor", 0.1)
+        self.object_pos_diff_thresh = rospy.get_param("/cube_pose_publisher/pos_diff_thresh", 0.02)
+        self.object_rot_diff_thresh = rospy.get_param("/cube_pose_publisher/rot_diff_thresh", 0.25)
+        self.cov_estimate_queue_size = rospy.get_param("/cube_pose_publisher/cov_estimate_queue_size", 5)
+        self.cov_estimate_time_window = rospy.get_param("/cube_pose_publisher/cov_estimate_time_window", 0.5)
+        self.cov_ratio_threshold = rospy.get_param("/cube_pose_publisher/cov_ratio_threshold", 5)
 
         self.last_object_tf = np.eye(4)
         self.current_object_tf = self.last_object_tf.copy()
@@ -58,11 +70,16 @@ class ObjectPosePublisher:
         self.face_to_tag_map = {}
         self.tag_pose = {}
         self.tag_status = {}
+        self.obj_status = PoseStatus.NOTFOUND
         self.tag_receive_dt = {}
         self.all_tag_ids = []
 
         self.load_cube_tag_config()
         self.load_cube_face_offset()
+        self.initialize_pose_covariance_estimate()
+
+        if self.enable_second_camera:
+            self.load_second_camera_transform()
 
         # ROS service
         rospy.Service("face_pose", face_pose, self.get_face_pose_handler)
@@ -107,10 +124,52 @@ class ObjectPosePublisher:
                 for tag in tags:
                     self.tag_to_object_offset[tag] = T_object2april
 
-        T_face2april = xyz_rpy_to_rigidtransform(xyz=[-0.01, 0.01, 0.0], rpy=[0.0, 0.0, -np.pi/2])
+        T_face2april = rutil.xyz_rpy_to_rigidtransform(xyz=[-0.01, 0.01, 0.0], rpy=[0.0, 0.0, -np.pi/2])
         self.face_to_tag_transform = T_face2april
 
+    def initialize_pose_covariance_estimate(self):
+        self.pose_covariance_estimator = {}
+        self.tag_pose_covariance = {}
+        self.tag_pose_covariance_array = np.zeros(6,)
+
+        for face in ["A", "B", "C", "D", "E", "F"]:
+            # consider the first tag for small cube only
+            tag = self.face_to_tag_map[face][0]
+            self.pose_covariance_estimator[tag] = RunningMeanCovariance(
+                queue_size=self.cov_estimate_queue_size,
+                time_window=self.cov_estimate_time_window
+            )
+
+    def load_second_camera_transform(self):
+        rospy.loginfo("Wait for second camera link to be published!")
+        while not rospy.is_shutdown():
+            try:
+                transform = self.tfBuffer.lookup_transform(
+                    "world",
+                    f"{self.second_camera_name}_color_optical_frame",
+                    rospy.Time(0),  # latest
+                )
+                self.T_camera1_to_world = rutil.ros_transform_to_rigidtransform(transform)
+                break
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
+                pass
+        rospy.loginfo("Second camera link is published!")
+
+    def estimate_covariance(self):
+        for tag_idx, tag in enumerate(self.pose_covariance_estimator.keys()):
+            cov = self.pose_covariance_estimator[tag].get_covariance()
+            if cov is not None:
+                self.tag_pose_covariance[tag] = cov
+            else:
+                self.tag_pose_covariance[tag] = np.inf
+            self.tag_pose_covariance_array[tag_idx] = self.tag_pose_covariance[tag]
+
     def lookup_tag_poses_from_tf(self):
+        # get tag detections published by camera1
+        if self.enable_second_camera:
+            tag_detections = rospy.wait_for_message("/camera_1/tag_detections", AprilTagDetectionArray)
+
+        # look up /tf published by camera0
         for tag in self.all_tag_ids:
             tag_tf_time = None
             try:
@@ -119,39 +178,89 @@ class ObjectPosePublisher:
                     "tag_" + str(tag),
                     rospy.Time(0),  # latest
                 )
-                self.tag_status[tag] = PoseStatus.UPDATED
                 self.tag_pose[tag] = rutil.ros_transform_to_rigidtransform(transform)
                 self.tag_receive_dt[tag] = (rospy.Time.now() - transform.header.stamp).to_sec()
                 tag_tf_time = transform.header.stamp
+                if self.tag_receive_dt[tag] > 0.1:
+                    self.tag_status[tag] = PoseStatus.OUTDATED
+                else:
+                    self.tag_status[tag] = PoseStatus.UPDATED
+                if self.tag_status[tag] == PoseStatus.UPDATED:
+                    self.current_tf_time = tag_tf_time
+                    self.pose_covariance_estimator[tag].append_new(transform)
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
                 self.tag_status[tag] = PoseStatus.OUTDATED
                 self.tag_receive_dt[tag] = -np.inf
-            if self.tag_receive_dt[tag] > 0.1:
-                self.tag_status[tag] = PoseStatus.OUTDATED
-            if self.tag_status[tag] == PoseStatus.UPDATED:
-                self.current_tf_time = tag_tf_time
+
+            # check if visible in the second camera
+            if self.tag_status[tag] == PoseStatus.OUTDATED and self.enable_second_camera:
+                for detection in tag_detections.detections:
+                    if detection.id == tag:
+                        self.tag_status[tag] = PoseStatus.UPDATED
+                        self.tag_pose[tag] = rutil.ros_pose_to_rigid_transform(detection.pose.pose)
+
+        # # test covariance estimator
+        # tag_pose_covariance = {}
+        # for tag in self.pose_covariance_estimator.keys():
+        #     cov = self.pose_covariance_estimator[tag].get_covariance()
+        #     if cov is not None:
+        #         tag_pose_covariance[tag] = cov
+        #     else:
+        #         tag_pose_covariance[tag] = np.inf
+        # rospy.loginfo_throttle(0.5, f"tag pos cov: A({tag_pose_covariance[34]}) | B({tag_pose_covariance[44]}) | C({tag_pose_covariance[36]}) | D({tag_pose_covariance[32]}) | E({tag_pose_covariance[42]}) | F({tag_pose_covariance[40]})")
 
     def get_object_pose_from_tag_pose(self):
         # there might be more than one tag pose available
         # each one can be used to calculate the object pose
         # we use the averaged result
+
+        # estimate tag pose covariance
+        self.estimate_covariance()
+
         valid_transforms = []
-        for tag in self.all_tag_ids:
+        # for tag in self.all_tag_ids:
+        for tag_id, tag in enumerate(self.pose_covariance_estimator.keys()):
+            # select tag pose based on covariance
             if self.tag_status[tag] == PoseStatus.UPDATED:
+                if self.tag_pose_covariance_array[tag_id] / np.min(self.tag_pose_covariance_array) > self.cov_ratio_threshold:
+                    continue
                 _tag_pose = self.tag_pose[tag]
                 _object_pose = np.matmul(_tag_pose, self.tag_to_object_offset[tag])
                 valid_transforms.append(_object_pose)
 
-        valid_transforms = np.array(valid_transforms).reshape(-1, 4, 4)
-        if len(valid_transforms) > 1:
-            avg_object_tf = rutil.average_transforms(valid_transforms)
-        elif len(valid_transforms) > 0:
-            avg_object_tf = valid_transforms[0]
-        else:
-            avg_object_tf = None
+        do_pose_smoothing = False
 
-        # smoothing
-        if avg_object_tf is not None:
+        valid_transforms = np.array(valid_transforms).reshape(-1, 4, 4)
+        
+        if len(valid_transforms) <= 0:
+            avg_object_tf = None
+            do_pose_smoothing = False
+            self.obj_status = PoseStatus.OUTDATED
+        else:
+            if len(valid_transforms) > 1:
+                avg_object_tf = rutil.average_transforms(valid_transforms)
+            elif len(valid_transforms) > 0:
+                avg_object_tf = valid_transforms[0]
+
+            # do smoothing when large deviation from previous pose is detected
+            pos_deviation, rot_deviation = rutil.substract_two_transforms(
+                tf0=self.last_object_tf, tf1=avg_object_tf
+            )
+            if np.linalg.norm(pos_deviation) > self.object_pos_diff_thresh or \
+                np.linalg.norm(rot_deviation) > self.object_rot_diff_thresh:
+                do_pose_smoothing = True
+
+            # do smoothing when consecutive updates are received
+            if self.obj_status in [PoseStatus.NOTFOUND, PoseStatus.OUTDATED]:
+                do_pose_smoothing = False
+            else:
+                do_pose_smoothing = True
+
+            self.obj_status = PoseStatus.UPDATED
+
+        # smoothing (when: 1) large deviation from previous pose is detected and 2) )
+        # if avg_object_tf is not None:
+        if do_pose_smoothing:
             avg_object_tf = rutil.interpolate_two_transforms(
                 tf0=self.last_object_tf, tf1=avg_object_tf, amount=self.object_tf_smooth_factor
             )
@@ -193,7 +302,7 @@ class ObjectPosePublisher:
             T_tag2world = self.tag_pose[tag]
             T_face2world = np.matmul(T_tag2world, self.face_to_tag_transform)
             return {
-                "pose": transform_to_posevec(T_face2world),
+                "pose": rutil.transform_to_posevec(T_face2world),
                 "visible": True
             }
         else:

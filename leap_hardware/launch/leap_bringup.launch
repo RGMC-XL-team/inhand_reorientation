@@ -18,15 +18,16 @@
     <param name="free_move" type="bool" value="$(arg free_move)" />
   </node>
 
-  <group if="$(arg enable_visualization)">
-    <!-- Leap Hand JointState publisher -->
-    <!-- 
-      This separate joint state publisher is deprecated,
-      because multiple hardware queries are not supported
-    -->
-    <node pkg="leap_hardware" name="leaphand_publisher" type="leap_joint_state_publisher.py"
-      output="screen" if="$(arg publish_joint_state)" />
+  <!-- Leap Hand JointState publisher -->
+  <!-- 
+    This separate joint state publisher is only launched
+    for calibration, because multiple hardware queries
+    are not supported
+  -->
+  <node pkg="leap_hardware" name="leaphand_publisher" type="leap_joint_state_publisher.py"
+    output="screen" if="$(arg publish_joint_state)" />
 
+  <group if="$(arg enable_visualization)">
     <!-- Leap Hand visualization -->
     <include file="$(find my_robot_description)/launch/view_leaphand.launch">
       <arg name="use_slider" value="false" />

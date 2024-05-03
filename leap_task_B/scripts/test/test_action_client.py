@@ -10,7 +10,7 @@ def test_action_client():
     action_client.wait_for_server()
     while not rospy.is_shutdown():
         _name_from_user = input("Please input the policy name: ")
-        if _name_from_user not in ["RESET_HAND", "RESET_OBJECT", "ROT_CW", "ROT_CCW", "FLIP_IN", "FLIP_OUT", "STOP"]:
+        if _name_from_user not in ["RESET_HAND", "RESET_OBJECT", "RESET_OBJECT_AGGRESSIVE", "ROT_CW", "ROT_CCW", "FLIP_IN", "FLIP_OUT", "STOP"]:
             _name_from_user = "RESET_HAND"
         print(f"send request for policy {_name_from_user}")
         policy_name = _name_from_user

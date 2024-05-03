@@ -1,0 +1,53 @@
+# # Definitions of tags to detect
+#
+# ## General remarks
+#
+# - All length in meters
+# - 'size' refers to the length of the shared border between solid black and solid white rectangle.
+#   See README.md or https://github.com/AprilRobotics/apriltag/wiki/AprilTag-User-Guide#pose-estimation for details.
+# - Ellipsis (...) signifies that the previous element can be repeated multiple times.
+#
+# ## Standalone tag definitions
+# ### Remarks
+#
+# - name is optional
+#
+# ### Syntax
+#
+# standalone_tags:
+#   [
+#     {id: ID, size: SIZE, name: NAME},
+#     ...
+#   ]
+standalone_tags: [
+    { id: 0, size: 0.08 }, # calibration
+    { id: 34, size: 0.02 }, # face A
+    { id: 44, size: 0.02 }, # face B
+    { id: 36, size: 0.02 }, # face C
+    { id: 32, size: 0.02 }, # face D
+    { id: 42, size: 0.02 }, # face E
+    { id: 40, size: 0.02 }, # face F
+    { id: 38, size: 0.02 }, # cylinder
+  ]
+# ## Tag bundle definitions
+# ### Remarks
+#
+# - name is optional
+# - x, y, z have default values of 0 thus they are optional
+# - qw has default value of 1 and qx, qy, qz have default values of 0 thus they are optional
+#
+# ### Syntax
+#
+# tag_bundles:
+#   [
+#     {
+#       name: 'CUSTOM_BUNDLE_NAME',
+#       layout:
+#         [
+#           {id: ID, size: SIZE, x: X_POS, y: Y_POS, z: Z_POS, qw: QUAT_W_VAL, qx: QUAT_X_VAL, qy: QUAT_Y_VAL, qz: QUAT_Z_VAL},
+#           ...
+#         ]
+#     },
+#     ...
+#   ]
+tag_bundles: []

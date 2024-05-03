@@ -35,6 +35,8 @@ class TaskBInfo(object):
         self.tolerance_xy = 0.02                    # the tolerance for xy in meter
         self.tolerance_yaw = 0.25                   # the tolerance for yaw in rad
 
+        self.face_seq_length = 10                   # the number of faces to execute
+
         self.time_budget = 10000.0                  # the time budget for the task (default: 30)
         self.time_spent = 0.0                       # the time spent on the current substep (face)
         self.time_current_start = 0.0               # the time when the current substep (face) starts
@@ -48,6 +50,7 @@ class TaskBInfo(object):
         self.tolerance_yaw = data["tolerance"]["yaw"]
         self.time_budget = data["time_budget"]
         self.object_center_pos = np.array(data["object_center_pos"])
+        self.face_seq_length = data["face_sequence_length"]
 
 
 class TaskBState(Enum):
@@ -60,6 +63,13 @@ class TaskBState(Enum):
     FLIP_IN = 6
     DONE = 7
     TIMEOUT = 8
+    ERROR = 9
+
+
+class TaskBOfflineMode(Enum):
+    FIXED = 0
+    USER = 1
+    RANDOM = 2
 
 
 M_PI = np.pi

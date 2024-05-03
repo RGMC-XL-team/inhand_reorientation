@@ -1,0 +1,43 @@
+<!-- 
+    This launch file starts Realsense D405 camera
+    and Apriltag detection.
+ -->
+<launch>
+    <arg name="camera_0_name" default="camera_d405" />
+    <arg name="camera_0_serial_no" default="130322273850" />
+    <arg name="camera_0_calib_file"
+        default="$(find leap_hardware)/config/rgmc_d405_calib.yaml" />
+
+    <!-- Start camera -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="serial_no" value="$(arg camera_0_serial_no)" />
+        <arg name="camera" value="$(arg camera_0_name)" />
+    </include>
+
+    <!-- Start Aruco detection -->
+    <include file="$(find apriltag_ros)/launch/continuous_detection.launch">
+        <arg name="camera_name" value="$(arg camera_0_name)" />
+        <arg name="image_topic" value="color/image_raw" />
+    </include>
+
+    <!-- Publish the calibration result -->
+    <include file="$(find leap_hardware)/launch/leap_calibration_publish.launch">
+        <arg name="enable_hardware" value="false" />
+        <arg name="calibration_file"
+            default="$(arg camera_0_calib_file)" />
+    </include>
+
+    <!-- Object pose publisher -->
+    <node name="cube_pose_publisher" pkg="leap_hardware" type="object_pose_publisher.py"
+        output="screen">
+        <param name="publish_rate" value="30" />
+        <param name="object_name" value="cube" />
+        <!-- <param name="smooth_factor" value="0.25" /> -->
+        <param name="smooth_factor" value="0.1" />
+        <param name="pos_diff_thresh" value="0.02" />
+        <param name="rot_diff_thresh" value="0.25" />
+        <param name="cube_face_offset_file"
+            value="$(find leap_hardware)/config/cube_face_offset.yaml" />
+        <param name="cube_tag_file" value="$(find leap_hardware)/config/tags_cube.yaml" />
+    </node>
+</launch>

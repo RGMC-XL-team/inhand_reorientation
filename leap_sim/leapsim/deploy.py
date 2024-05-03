@@ -175,6 +175,9 @@ class HardwarePlayer:
             dtype=torch.float, device=self.device).unsqueeze(0)
         
         # include rotation axis only when needed
+        if "rotate_direction" not in self.config["task"]["env"]:
+            self.config["task"]["env"]["rotate_direction"] = None
+            
         if self.config["task"]["env"]["rotate_direction"] == "both":
             self.config["task"]["env"]["include_rot_axis"] = True
         else:

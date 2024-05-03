@@ -157,6 +157,14 @@ class LeapGraspCommander:
         self.fingertip_height_bias = FINGERTIP_HEIGHT_BIAS
         self.re_generate_feature_points()
 
+    def set_fingertip_radius(self, radius):
+        self.fingertip_radius = radius
+        self.re_generate_feature_points()
+
+    def reset_fingertip_radius(self):
+        self.fingertip_radius = FINGERTIP_RADIUS
+        self.re_generate_feature_points()
+
     def set_cube_transform(self, transform):
         self._cube_transform = transform
 

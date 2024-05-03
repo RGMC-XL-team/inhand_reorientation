@@ -97,7 +97,7 @@ env:
   envSpacing: 0.25
   phase_period: 2
   exec_lag: 1
-  include_obj_pose: true # default: true
+  include_obj_pose: false # default: true
 
   # goal condition
   goal_conditioned: False
@@ -129,7 +129,7 @@ env:
   forceDecayInterval: 0.08
 
   rew_scale: 1.0
-  rotate_direction: "both" # "cw" or "ccw" or "both"
+  rotate_direction: "ccw" # "cw" or "ccw" or "both"
   disabled_fingers: [] # disabled fingers
 
   reward:

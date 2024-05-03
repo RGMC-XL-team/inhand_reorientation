@@ -135,6 +135,19 @@ class MultiHardwarePlayer(object):
     ## Setup APIs
     # ----------------------------------------
 
+    def load_reset_via_points(self, cfg):
+        """Load hand pos via points when reset"""
+        # only thumb and finger3 are allowed to move for these via points
+        self.reset_finger_up_pos = cfg["finger_up_pos"]
+        self.reset_finger_reach_out_pos = cfg["finger_reach_out_pos"]
+        self.reset_finger_back_pos = cfg["finger_back_pos"]
+        self.reset_finger_up_pos[0:4] = self.init_pose[0:4].copy()
+        self.reset_finger_up_pos[8:12] = self.init_pose[8:12].copy()
+        self.reset_finger_reach_out_pos[0:4] = self.init_pose[0:4].copy()
+        self.reset_finger_reach_out_pos[8:12] = self.init_pose[8:12].copy()
+        self.reset_finger_back_pos[0:4] = self.init_pose[0:4].copy()
+        self.reset_finger_back_pos[8:12] = self.init_pose[8:12].copy()
+
     def load_and_initialize_agent_config(self):
         """Load RL agent config and restore the networks"""
         self.policy_name_to_config_map = {}
@@ -192,14 +205,21 @@ class MultiHardwarePlayer(object):
         self.smooth_move_time = _taskB_config["control"]["smooth_move_time"]
         self.rl_cube_length = _taskB_config["control"]["rl_cube_length"]
         self.model_based_cube_length = _taskB_config["control"]["model_based_cube_length"]
+        self.flip_fingertip_radius = _taskB_config["control"]["flip_fingertip_radius"]
+        self.rot_fingertip_radius = _taskB_config["control"]["rot_fingertip_radius"]
 
         ## hand reset pose
         # canonical_pose_path = os.path.join(self.package_paths["leap_sim"], "leapsim/cache", "leap_canonical_pose_v2.npy")
         self.init_pose = np.array(_taskB_config["leap_canonical_pose_v2"])
+        if "reset_via_hand_pos" in _taskB_config:
+            self.load_reset_via_points(_taskB_config["reset_via_hand_pos"])
 
         ## object should be reset to this position for better manipulation
         # self.object_center_pose = np.array([-0.0542509-0.005, 0.04004605-0.005, 0.08418902+0.005, 0.0, 0.0, 0.0, 1.0])
         self.object_center_pose = np.concatenate((_taskB_config["object_center_pos"], [0, 0, 0, 1]))
+        self.rot_reset_pos = _taskB_config["reset_object_pos"]["rot"]
+        self.flip_reset_pos = _taskB_config["reset_object_pos"]["flip"]
+        
         self.finger_to_sim_index_map = {
             "finger1": [0, 1, 2, 3],
             "thumb": [4, 5, 6, 7],
@@ -350,7 +370,7 @@ class MultiHardwarePlayer(object):
     def smooth_move_hand_to_pose(self, goal_position: np.ndarray, total_time: float=2.0):
         """Interpolate from current hand pose to goal"""
         current_position = self.leap_hw.poll_joint_position()[0]
-        self.move_hand_to_pose(start_position=current_position, goal_position=self.grasp_pose, total_time=total_time)
+        self.move_hand_to_pose(start_position=current_position, goal_position=goal_position.copy(), total_time=total_time)
 
     # ----------------------------------------
 
@@ -377,7 +397,7 @@ class MultiHardwarePlayer(object):
         # TODO(yongpeng): add via points
         """add via-points here"""
 
-    def reset_object(self, yaw=None):
+    def reset_object(self, yaw=None, current_policy="ROT"):
         """reset object to center position"""
         self.grasp_commander.set_fingertip_height_bias(0.03)
 
@@ -406,15 +426,51 @@ class MultiHardwarePlayer(object):
             goal_yaw = yaw
         desired_object_quat = get_quat_from_euler([0, 0, goal_yaw])
 
-        desired_object_pose = np.concatenate(
-            [self.object_center_pose[0:2].copy(),
-             [curr_object_state[2]],
-             desired_object_quat])
+        if current_policy == "ROT":
+            desired_object_pose = np.concatenate(
+                [self.rot_reset_pos[0:2].copy(),
+                [curr_object_state[2]],
+                desired_object_quat])
+        else:
+            desired_object_pose = np.concatenate(
+                [self.flip_reset_pos[0:2].copy(),
+                [curr_object_state[2]],
+                desired_object_quat])
+            
         # current_hand_pose = self.grasp_pose.copy()
         self.grasp_commander.set_fake_cube_transform_from_pos_quat(pos=desired_object_pose[0:3], quat=desired_object_pose[3:7])
         self.grasp_pose = self.grasp_commander.solve_hand_grasp_IK(use_saved_ftip_pos=True)
         self.smooth_move_hand_to_pose(self.grasp_pose, total_time=self.smooth_move_time)
 
+        self.reset_hand()
+
+    def reset_object_aggressive(self):
+        """reset the object aggressively with thumb and finger3"""
+        # _finger_up_pos = np.array([-0.34508689,  0.15192281, -0.41258202,  0.15805872,
+        #                            1.27939877, 1.57545698,  0.19180612,  0.01539837,
+        #                            -0.34508689,  0.1733986 , -0.42025195,  0.18106826,
+        #                            1.10759299, -0.02755298,  0.15345682, 0.11970909])
+        # _finger_reach_out_pos = np.array([-0.34508689,  0.15959273, -0.41258202,  0.15499075,
+        #                                   0.51087436, 1.87611711,  1.58772878,  0.88976751,
+        #                                   -0.34508689,  0.1733986 , -0.42025195,  0.18106826,
+        #                                   1.36376755,  0.89590345,  0.84528221, 1.03549559])
+        # _finger_back_pos = np.array([-0.34508689,  0.17646657, -0.41258202,  0.15499075,
+        #                              -0.378834634,  1.59233081,  1.89452486,  1.09225307,
+        #                              -0.34508689,  0.1733986 , -0.42025195,  0.18106826,
+        #                              0.949592993,  1.01095186,  1.35763158,  0.978738621])
+        self.reset_hand()
+        # _finger_up_pos[0:4] = current_position[0:4].copy(); _finger_up_pos[8:12] = current_position[8:12].copy()
+        # _finger_reach_out_pos[0:4] = current_position[0:4].copy(); _finger_reach_out_pos[8:12] = current_position[8:12].copy()
+        # _finger_back_pos[0:4] = current_position[0:4].copy(); _finger_back_pos[8:12] = current_position[8:12].copy()
+        self.smooth_move_hand_to_pose(
+            self.reset_finger_up_pos, total_time=self.smooth_move_time
+        )
+        self.smooth_move_hand_to_pose(
+            self.reset_finger_reach_out_pos, total_time=self.smooth_move_time
+        )
+        self.smooth_move_hand_to_pose(
+            self.reset_finger_back_pos, total_time=self.smooth_move_time
+        )
         self.reset_hand()
 
     def grasp_object(self):
@@ -551,14 +607,29 @@ class MultiHardwarePlayer(object):
             self.set_run_model_based_policy()
             self.reset_hand()
             _success = True
-        elif _requested_policy == "RESET_OBJECT":
+        elif _requested_policy in ["RESET_OBJECT", "RESET_OBJECT_ROT"]:
             self.set_run_model_based_policy()
-            self.reset_object()
+            self.reset_object(current_policy="ROT")
+            _success = True
+        elif _requested_policy == "RESET_OBJECT_FLIP":
+            self.set_run_model_based_policy()
+            self.reset_object(current_policy="FLIP")
+            _success = True
+        elif _requested_policy == "RESET_OBJECT_AGGRESSIVE":
+            self.set_run_model_based_policy()
+            self.reset_object_aggressive()
             _success = True
         elif _requested_policy in ["ROT_CW", "ROT_CCW", "FLIP_IN", "FLIP_OUT"]:
             self.set_run_rl_policy()
             self.switch_to_policy(_requested_policy)
-            self.grasp_object()
+            if "ROT" in _requested_policy:
+                self.grasp_commander.set_fingertip_radius(self.rot_fingertip_radius)
+                self.grasp_object()
+                self.grasp_commander.reset_fingertip_radius()
+            else:
+                self.grasp_commander.set_fingertip_radius(self.flip_fingertip_radius)
+                self.grasp_object()
+                self.grasp_commander.reset_fingertip_radius()
             self.deploy_current_policy()
             _success = False
         else:

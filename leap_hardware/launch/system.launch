@@ -7,45 +7,25 @@
     <!-- By default, we launch Leap Hand -->
     <arg name="start_hand" default="true" />
 
-    <!-- By default, we launch Realsense -->
-    <arg name="start_realsense" default="true" />
+    <!-- By default, we launch single camera D405 -->
+    <arg name="use_single_camera" default="true" />
 
     <!-- Leap Hand -->
     <group if="$(arg start_hand)">
         <include file="$(find leap_hardware)/launch/leap_bringup.launch">
             <arg name="free_move" value="false" />
             <arg name="enable_visualization" value="true" />
+            <arg name="use_rviz" value="true" />
+            <arg name="publish_joint_state" value="false" />
         </include>
     </group>
 
     <!-- Realsense -->
-    <group if="$(arg start_realsense)">
-        <!-- Start camera -->
-        <include file="$(find realsense2_camera)/launch/rs_camera.launch" />
+    <include file="$(find leap_hardware)/launch/single_camera.launch"
+        if="$(arg use_single_camera)" />
 
-        <!-- Start Aruco detection -->
-        <include file="$(find apriltag_ros)/launch/continuous_detection.launch">
-            <arg name="camera_name" value="camera" />
-            <arg name="image_topic" value="color/image_raw" />
-        </include>
+    <include file="$(find leap_hardware)/launch/double_camera.launch"
+        unless="$(arg use_single_camera)" />
 
-        <!-- Publish the calibration result -->
-        <include file="$(find leap_hardware)/launch/leap_calibration_publish.launch">
-            <arg name="enable_hardware" value="false" />
-            <arg name="calibration_file"
-                default="/home/yongpeng/.ros/easy_handeye/my_leap_hand_e2h_calib_eye_on_base.yaml" />
-        </include>
-
-        <!-- Object pose publisher -->
-        <node name="cube_pose_publisher" pkg="leap_hardware" type="object_pose_publisher.py">
-            <param name="publish_rate" value="30" />
-            <param name="object_name" value="cube" />
-            <!-- <param name="smooth_factor" value="0.25" /> -->
-            <param name="smooth_factor" value="0.1" />
-            <param name="cube_face_offset_file"
-                value="$(find leap_hardware)/config/cube_face_offset.yaml" />
-            <param name="cube_tag_file" value="$(find leap_hardware)/config/tags_cube.yaml" />
-        </node>
-    </group>
 
 </launch>
