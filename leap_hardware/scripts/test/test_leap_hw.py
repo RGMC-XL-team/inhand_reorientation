@@ -24,7 +24,7 @@ def display_trajectory(t_traj, y_traj, dim=0):
 
 
 def generate_test_joint_trajectory(type="sine"):
-    def generate_sine_trajectory(amp, mean, dt=100, period=5000, duration=5000, phase=0, dof=16):
+    def generate_sine_trajectory(amp, mean, dt=100, period=5000, duration=5000, phase=0, dof=16):  # noqa: PLR0913
         """
         dt, period: integer micro-seconds
         size: (T, N), T is steps, N is dofs

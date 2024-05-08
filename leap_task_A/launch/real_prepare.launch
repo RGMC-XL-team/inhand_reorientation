@@ -2,21 +2,16 @@
 
   <!-- the camera -->
 
-  <include file="$(find azure_kinect_ros_driver)/launch/kinect_rgbd.launch">
+  <!-- <include file="$(find azure_kinect_ros_driver)/launch/kinect_rgbd.launch">
     <arg name="depth_enabled" value="true" />
     <arg name="depth_mode" value="WFOV_UNBINNED" />
     <arg name="fps" value="15" />
     <arg name="color_resolution" value="1536P" />
-    <!-- <arg name="color_control_mode_auto" value="false" /> -->
-    <!-- <arg name="color_exposure_usec" value="20000" /> -->
-    <!-- <arg name="calibration_url"
-    value="file:///home/robotics/Mingrui/project_dlo_planning_22/DLO_planning_2_private/data/camera/kinect_info"/> -->
     <arg name="num_worker_threads" value="4" />
     <arg name="overwrite_robot_description" value="false" />
-    <!-- <arg name="tf_prefix" value="cam_" /> -->
-    <!-- <arg name="depth_registration" value="true" />  -->
-    <!-- <arg name="node_start_delay" value="0.0" />                                   -->
-  </include>
+  </include> -->
+
+  <include file="$(find realsense2_camera)/launch/rs_camera.launch" />
 
   <!-- the Apriltap detection -->
 
@@ -24,9 +19,8 @@
 
   <!-- publish the transform between camera and hand -->
 
-  <arg name="tracking_base_frame" default="camera_base" />
-  <arg name="calibration_file"
-    default="/home/robo/.ros/easy_handeye/leap_kinect_calib_eye_on_base.yaml" />
+  <arg name="tracking_base_frame" default="camera_link" />
+  <arg name="calibration_file" default="$(find leap_hardware)/config/rgmc_d405_calib.yaml" />
 
   <include file="$(find easy_handeye)/launch/publish.launch">
     <arg name="eye_on_hand" value="false" />
@@ -37,8 +31,7 @@
 
   <!-- Tag TF to a pose topic -->
 
-  <node pkg="leap_task_A" name="tag_tf_to_topic" type="tag_tf_to_topic.py"
-    output="screen" />
+  <node pkg="leap_task_A" name="tag_tf_to_topic" type="tag_tf_to_topic.py" output="screen" />
 
   <!-- Leap Hand -->
 
@@ -53,7 +46,6 @@
 
   <!-- rviz -->
 
-  <node name="rviz" pkg="rviz" type="rviz"
-    args="-d $(find leap_task_A)/rviz/taskA.rviz" />
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find leap_task_A)/rviz/taskA.rviz" />
 
 </launch>

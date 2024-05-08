@@ -1,0 +1,18 @@
+parameters:
+  eye_on_hand: false
+  freehand_robot_movement: true
+  move_group: manipulator
+  move_group_namespace: /
+  namespace: /my_leap_hand_e2h_calib_eye_on_base/
+  robot_base_frame: palm_lower
+  robot_effector_frame: fingertip_3
+  tracking_base_frame: camera_link
+  tracking_marker_frame: tag_0
+transformation:
+  qw: 0.0
+  qx: 0.70710678
+  qy: 0.0
+  qz: 0.70710678
+  x: -0.037428945142752672
+  y: -0.03952385907540547
+  z: -0.33871903199149476

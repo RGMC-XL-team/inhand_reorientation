@@ -42,7 +42,7 @@ class Arena:
             sciR.from_euler("xyz", [90, 0, 0], degrees=True).as_quat()
         )  # vertical cylinder
         object_site = self.model.worldbody.add(
-            "site", name="object_site", pos=[-0.025, 0.015, 0.15], quat=object_quat, rgba=[0, 0, 0, 0]
+            "site", name="object_site", pos=[-0.025, 0.035, 0.15], quat=object_quat, rgba=[0, 0, 0, 0]
         )
         # object_site = self.model.worldbody.add("site", pos=[-0.02, 0.015, 0.12], quat=object_quat, rgba=[0, 0, 0, 0]) # horizontal cylinder
         object_site.attach(self.object).add("joint", type="free", damping="0.0001")

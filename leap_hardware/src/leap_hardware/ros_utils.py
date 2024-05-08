@@ -66,7 +66,7 @@ def rigidtransform_to_ros_transform(
 
 
 def rpy_to_mat(rpy):
-    assert len(rpy) == 3
+    assert len(rpy) == 3  # noqa: PLR2004
     # roll, pitch, yaw = rpy
     # return tf3d.euler.euler2mat(roll, pitch, yaw, "sxyz")
     return Rot.from_euler("xyz", rpy, degrees=False).as_matrix()

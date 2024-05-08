@@ -3,7 +3,7 @@ import numpy as np
 import rospy
 from moveit_msgs.msg import DisplayTrajectory, RobotState, RobotTrajectory
 from sensor_msgs.msg import JointState, MultiDOFJointState
-from test_gen_motion import *
+from test_gen_motion import gen_linear_traj_qA_to_qB
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 DEFAULT_STEP_SECS = 0.05

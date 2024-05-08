@@ -7,7 +7,6 @@ from geometry_msgs.msg import PoseStamped
 
 class TagProcess:
     def __init__(self):
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         self.tfBuffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tfBuffer)
 
@@ -24,8 +23,8 @@ class TagProcess:
                 rospy.Time(0),  # latest
             )
         except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
-            rospy.logwarn(f"Cannot do lookup transform. {e.what()}")
-            pass
+            rospy.logwarn_throttle(2, f"Cannot do lookup transform. {e}")
+            return
 
         msg = PoseStamped()
         msg.header.stamp = rospy.Time.now()

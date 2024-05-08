@@ -1,6 +1,7 @@
+import time
+
 import numpy as np
 from scipy.spatial.transform import Rotation as sciR
-import time
 
 
 # ---------------------------------------
@@ -43,7 +44,7 @@ def quatXYZW2WXYZ(quat_xyzw):
 def quaternion_to_rotation_matrix(q):
     """
     Convert a quaternion to a 3x3 rotation matrix.
-    
+
     Parameters:
         q (array_like): Quaternion in the form [w, x, y, z].
 
@@ -52,15 +53,19 @@ def quaternion_to_rotation_matrix(q):
     """
     # Normalize quaternion
     q = q / np.linalg.norm(q)
-    
+
     # Extract quaternion components
     x, y, z, w = q
-    
+
     # Compute rotation matrix
-    R = np.array([[1 - 2*y**2 - 2*z**2, 2*x*y - 2*z*w, 2*x*z + 2*y*w],
-                  [2*x*y + 2*z*w, 1 - 2*x**2 - 2*z**2, 2*y*z - 2*x*w],
-                  [2*x*z - 2*y*w, 2*y*z + 2*x*w, 1 - 2*x**2 - 2*y**2]])
-    
+    R = np.array(
+        [
+            [1 - 2 * y**2 - 2 * z**2, 2 * x * y - 2 * z * w, 2 * x * z + 2 * y * w],
+            [2 * x * y + 2 * z * w, 1 - 2 * x**2 - 2 * z**2, 2 * y * z - 2 * x * w],
+            [2 * x * z - 2 * y * w, 2 * y * z + 2 * x * w, 1 - 2 * x**2 - 2 * y**2],
+        ]
+    )
+
     return R
 
 
@@ -69,8 +74,7 @@ def posQuat2Isometry3d(pos, quat):
     # quat: [x, y, z, w]
     pos = np.array(pos)
     rot_mat = sciR.from_quat(quat).as_matrix()
-    isometry3d = np.block([[rot_mat, pos.reshape(3, 1)], 
-                           [np.zeros((1, 3)), 1]])
+    isometry3d = np.block([[rot_mat, pos.reshape(3, 1)], [np.zeros((1, 3)), 1]])
     return isometry3d
 
 
@@ -87,6 +91,7 @@ def batchPosQuat2Isometry3d(pos, quat):
     isometry3d[:, 3, 3] = 1
 
     return isometry3d
+
 
 # ---------------------------------------
 # quat: [x, y, z, w]
@@ -121,43 +126,48 @@ def batchIsometry3dInverse(isometry3d):
 # ---------------------------------------
 def posRotMat2Isometry3d(pos, rot_mat):
     t1 = time.time()
-    isometry3d = np.block([[rot_mat, pos.reshape(3, 1)], 
-                           [np.zeros((1, 3)), 1]])
-    
+    isometry3d = np.block([[rot_mat, pos.reshape(3, 1)], [np.zeros((1, 3)), 1]])
+
     print(f"Time cost posRotMat2Isometry3d: {time.time() - t1}")
     return isometry3d
 
 
 # ---------------------------------------
 def isometry3dToPosQuat(T):
-    if T.shape[0] != 4 or T.shape[1] != 4:
+    if T.shape[0] != 4 or T.shape[1] != 4:  # noqa: PLR2004
         raise NameError("invalid input.")
-    pos = T[0:3, 3].reshape(-1, )
+    pos = T[0:3, 3].reshape(
+        -1,
+    )
     R = T[0:3, 0:3]
-    quat = sciR.from_matrix(R).as_quat() # quat: [x, y, z, w]
+    quat = sciR.from_matrix(R).as_quat()  # quat: [x, y, z, w]
     return pos, quat
 
 
 # ---------------------------------------
 def isometry3dToPosOri(T):
-    if T.shape[0] != 4 or T.shape[1] != 4:
+    if T.shape[0] != 4 or T.shape[1] != 4:  # noqa: PLR2004
         raise NameError("invalid input.")
-    pos = T[0:3, 3].reshape(-1, )
+    pos = T[0:3, 3].reshape(
+        -1,
+    )
     R = T[0:3, 0:3]
     return pos, sciR.from_matrix(R)
 
 
 # ---------------------------------------
 def isometry3dToPosRotVec(T):
-    if T.shape[0] != 4 or T.shape[1] != 4:
+    if T.shape[0] != 4 or T.shape[1] != 4:  # noqa: PLR2004
         raise NameError("invalid input.")
-    pos = T[0:3, 3].reshape(-1, )
+    pos = T[0:3, 3].reshape(
+        -1,
+    )
     R = T[0:3, 0:3]
     return pos, sciR.from_matrix(R).as_rotvec()
 
 
 # ---------------------------------------
-'''
+"""
     input:
         positions: size of [-1, 3]
         target_frame_pose: 
@@ -165,10 +175,10 @@ def isometry3dToPosRotVec(T):
             target_frame_pose in current frame
     output:
         transformed_pos: size of [-1, 3]
-'''
-def transformPositions(positions, 
-                       target_frame_pose=None, 
-                       target_frame_pose_inv=None):
+"""
+
+
+def transformPositions(positions, target_frame_pose=None, target_frame_pose_inv=None):
     if (target_frame_pose is None) and (target_frame_pose_inv is None):
         raise NameError("Both target_frame_pose and target_frame_pose_inv are None !")
     elif (target_frame_pose is not None) and (target_frame_pose_inv is not None):
@@ -190,7 +200,7 @@ def transformPositions(positions,
 
 
 # ---------------------------------------
-'''
+"""
     input: 
         velocities: 
             shape [-1, 6]
@@ -199,16 +209,15 @@ def transformPositions(positions,
     output:
         transformed_velocities: 
             shape [-1, 6]
-'''
-def transformVelocities(velocities, 
-                        target_frame_relative_quat=None,
-                        target_frame_relative_quat_inv=None):
-    
+"""
+
+
+def transformVelocities(velocities, target_frame_relative_quat=None, target_frame_relative_quat_inv=None):
     if (target_frame_relative_quat is None) and (target_frame_relative_quat_inv is None):
         raise NameError("Both target_frame_relative_quat and target_frame_relative_quat_inv are None !")
     elif (target_frame_relative_quat is not None) and (target_frame_relative_quat_inv is not None):
         raise NameError("Both target_frame_relative_quat and target_frame_relative_quat_inv are not None !")
-    
+
     velocities = np.array(velocities)
     original_shape = velocities.shape
     try:
@@ -221,17 +230,15 @@ def transformVelocities(velocities,
     elif target_frame_relative_quat_inv is not None:
         rot_matrix = sciR.from_quat(target_frame_relative_quat_inv).as_matrix()
 
-    rot_operator = np.block([[rot_matrix, np.zeros((3,3))], 
-                                    [np.zeros((3,3)), rot_matrix]])
-    
+    rot_operator = np.block([[rot_matrix, np.zeros((3, 3))], [np.zeros((3, 3)), rot_matrix]])
+
     transformed_velocities = (rot_operator @ velocities.T).T
     return transformed_velocities.reshape(original_shape)
 
 
 # ---------------------------------------
 def diagRotMat(rot_mat):
-    return np.block([[rot_mat, np.zeros((3, 3))], 
-                     [np.zeros((3, 3)), rot_mat]])
+    return np.block([[rot_mat, np.zeros((3, 3))], [np.zeros((3, 3)), rot_mat]])
 
 
 # ---------------------------------------
@@ -246,6 +253,8 @@ def batchDiagRotMat(rot_mat):
 """
     support batch operation
 """
+
+
 def skew(a):
     a = a.reshape(-1, 3)
     A = np.zeros((a.shape[0], 3, 3))
@@ -262,6 +271,8 @@ def skew(a):
 """
     support batch operation
 """
+
+
 def wrenchTransformationMatrix(a):
     a = np.asarray(a).reshape(-1, 3)
     M = np.tile(np.eye(6), (a.shape[0], 1, 1))
@@ -277,81 +288,64 @@ def jacoDeRotVecToAngularVel(rotvec):
     n = r.shape[0]
     R = sciR.from_rotvec(r.reshape(-1, 3)).as_matrix()
     R_T = np.transpose(R, (0, 2, 1))
-    I = np.tile(np.eye(3), (n, 1, 1))
+    I3 = np.tile(np.eye(3), (n, 1, 1))
 
-    body_jaco = ( np.matmul(r, r_T) + np.matmul((R_T - I), skew(r)) ) \
-                         / np.linalg.norm(r, axis=1, keepdims=True)**2
+    body_jaco = (np.matmul(r, r_T) + np.matmul((R_T - I3), skew(r))) / np.linalg.norm(r, axis=1, keepdims=True) ** 2
     space_jaco = np.matmul(R, body_jaco)
 
     return np.squeeze(space_jaco)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 # ---------------------------------------
-'''
+"""
     input:
         quat: [w, x, y, z]
-'''
+"""
+
+
 def quatInv(quat):
     quat = np.array(quat)
     quat_inv = quat.copy()
     quat_inv[1:] = -quat[1:]
     return quat_inv
 
+
 # ---------------------------------------
-'''
+"""
     Function: 
         calculate J(q1) = d(q1 * q2) / dq2
     Input:
         q1: [w, x, y, z]
     Output:
         The derivative
-'''
+"""
+
+
 def partialQuatMultiply(quat):
     w, x, y, z = quat
 
-    J = np.array([[w, -x, -y, -z],
-                  [x, w, -z, y],
-                  [y, z, w, -x],
-                  [z, -y, x, w]])
+    J = np.array([[w, -x, -y, -z], [x, w, -z, y], [y, z, w, -x], [z, -y, x, w]])
     return J
 
 
 # ---------------------------------------
-'''
+"""
     Function:
         calculate M, where dq/dt = M(q) * avel
     Input:
         q: [w, x, y, z]
-'''
+"""
+
+
 def mappingFromAvelToDquat(quat):
     w, x, y, z = quat
 
-    M = 1.0/2.0 * np.array([[-x, -y, -z],
-                            [w, -z, y],
-                            [z, w, -x],
-                            [-y, x, w]])
+    M = 1.0 / 2.0 * np.array([[-x, -y, -z], [w, -z, y], [z, w, -x], [-y, x, w]])
     return M
 
 
-
-
-
-
 # ---------------------------------------------------------------------------------
-if __name__ == '__main__':
+if __name__ == "__main__":
     # positions = [[0, 1, 2], [7, 4, 2]]
     # quat = [[0, 0, 0.1, 0.5], [0, 0, 0, 0.5]]
 
@@ -363,4 +357,4 @@ if __name__ == '__main__':
 
     # print(np.linalg.inv(a[0, :, :]))
 
-    print( wrenchTransformationMatrix([[0, 1, 2]]) )
+    print(wrenchTransformationMatrix([[0, 1, 2]]))

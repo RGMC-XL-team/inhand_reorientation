@@ -4,7 +4,7 @@ import numpy as np
 import rospy
 from sensor_msgs.msg import JointState
 
-from leap_hardware.leap_hand_utils import *
+from leap_hardware.leap_hand_utils import LEAPhand_to_sim_ones
 from leap_hardware.srv import leap_position, leap_positionRequest
 
 DEFAULT_REAL_TO_SIM_INDICES = [1, 0, 2, 3, 12, 13, 14, 15, 5, 4, 6, 7, 9, 8, 10, 11]

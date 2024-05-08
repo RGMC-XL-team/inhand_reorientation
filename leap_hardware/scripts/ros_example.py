@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
+
 import numpy as np
 import rospy
 from sensor_msgs.msg import JointState
 
-from leap_hardware.dynamixel_client import *
-from leap_hardware.srv import *
+from leap_hardware.srv import leap_position
 
 
 # This is example code, it reads the position from LEAP Hand and commands it

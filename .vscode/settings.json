@@ -20,11 +20,13 @@
         "editor.formatOnSave": true
     },
     "cSpell.words": [
+        "APRILTAG",
         "arctan",
         "Avel",
         "devel",
         "disp",
         "Dquat",
+        "edgecolor",
         "ftol",
         "hstack",
         "ICRA",
@@ -34,6 +36,8 @@
         "keepdims",
         "leaphand",
         "linalg",
+        "linewidth",
+        "logerr",
         "logwarn",
         "maxiter",
         "mingrui",
@@ -46,11 +50,13 @@
         "qpos",
         "randn",
         "RGMC",
+        "rigidtransform",
         "roslaunch",
         "rospack",
         "rospkg",
         "rospy",
         "rotvec",
+        "rutil",
         "SLSQP",
         "timestep",
         "traj",
@@ -58,15 +64,25 @@
         "urdf",
         "worldbody",
         "WXYZ",
+        "xaxis",
+        "xlabel",
+        "xlim",
         "xpos",
         "xquat",
-        "XYZW"
+        "XYZW",
+        "yaxis",
+        "ylabel",
+        "ylim",
+        "zlim"
+    ],
+    "mypy-type-checker.args": [
+        "--ignore-missing-imports"
     ],
     "python.analysis.extraPaths": [
         "./leap_hardware/src",
         "./leap_utils/src",
         "./leap_task_B/src",
-        "./leap_model_based/src",
+        "./leap_model_based/src"
     ],
     "redhat.telemetry.enabled": false,
     "xml.format.maxLineWidth": 100

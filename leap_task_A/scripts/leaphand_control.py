@@ -1,17 +1,19 @@
-import importlib.util
+from __future__ import annotations
+
 import os
 import sys
 import time
+from math import radians
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import rospkg
 import yaml
 from scipy.spatial.transform import Rotation as sciR
 
-# check if rospy is installed
-if importlib.util.find_spec("rospy") is None:
-    # manually add the path
+# Manually add path if not in ROS
+if "ROS_MASTER_URI" not in os.environ:
     current_file = Path(__file__).resolve()
     repo_root_dir = current_file.parent.parent.parent
     sys.path.append(str(repo_root_dir / "leap_model_based" / "src"))
@@ -27,16 +29,19 @@ from leap_model_based.leaphand_pinocchio import LeapHandPinocchio
 from leap_utils.mingrui.utils import saveDict
 from leap_utils.mingrui.utils_calc import posQuat2Isometry3d
 
+move_option = Literal["from_real", "from_last_target"]
 
-# -----------------------------------------------------------
+
 class LeapHandControl:
-    def __init__(self, robot_model, b_use_ros=False):
-        self.b_use_ros = b_use_ros
+    def __init__(self, robot_model: LeapHandPinocchio, use_real_hardware: bool = False) -> None:
+        self.use_real_hardware = use_real_hardware
         self.robot_model = robot_model
 
         self.control_rate = 50
+        self.back_to_initial_config = True
 
-        if b_use_ros:
+        self.env: LeapHandReal | Simulation
+        if use_real_hardware:
             self.env = LeapHandReal(control_rate=self.control_rate)
         else:
             self.env = Simulation(robot_model=robot_model)
@@ -47,19 +52,13 @@ class LeapHandControl:
         if int(1.0 / self.env.timestep) % self.control_rate != 0:
             raise NameError("Simulation rate % control rate != 0")
 
-    # --------------------------------------
     def updateCurrentHandJointPos(self):
         self.hand_curr_joint_pos = self.env.getHandJointPos().copy()
 
-    # --------------------------------------
-    def getArmJointPos(self):
-        return np.asarray([])
-
-    # --------------------------------------
-    def getFingerJointPos(self, finger_name, option="target"):
-        if option == "real":
+    def getFingerJointPos(self, finger_name, option: move_option = "from_last_target"):
+        if option == "from_real":
             finger_joint_pos = self.hand_curr_joint_pos[self.robot_model.finger_joints_id_in_hand[finger_name]]
-        elif option == "target":
+        elif option == "from_last_target":
             finger_joint_pos = self.hand_target_joint_pos[self.robot_model.finger_joints_id_in_hand[finger_name]]
         else:
             raise NameError("Invalid option.")
@@ -67,40 +66,24 @@ class LeapHandControl:
         return finger_joint_pos
 
     # --------------------------------------
-    def getFingerLocalPose(self, finger_name, local_position=None, option="target"):
-        finger_joint_pos = self.getFingerJointPos(finger_name, option)
-        finger_tcp_pos, finger_tcp_quat = self.robot_model.getFingerTcpLocalPose(
-            finger_name, finger_joint_pos=finger_joint_pos, local_position=local_position
-        )
-        return finger_tcp_pos, finger_tcp_quat
-
-    # --------------------------------------
-    def getFingerGlobalPose(self, finger_name, local_position=None, option="target"):
-        finger_tcp_pos, finger_tcp_quat = self.robot_model.getTcpGlobalPose(
+    def getFingerGlobalPose(self, finger_name, local_position=None, option: move_option = "from_last_target"):
+        return self.robot_model.getTcpGlobalPose(
             finger_name, self.getFingerJointPos(finger_name, option), local_position=local_position
-        )
-        # finger_tcp_pos, finger_tcp_quat = self.robot_model.getTcpGlobalPose(finger_name,
-        #                                                         finger_joint_pos=self.getFingerJointPos(finger_name, option),
-        #                                                         local_position=local_position)
-        return finger_tcp_pos, finger_tcp_quat
+        )  # finger_tcp_pos, finger_tcp_quat
 
-    # --------------------------------------
     def clipHandJointPosInBound(self, joint_pos):
         joints_lb = np.array(self.robot_model.joint_id_to_lower_limits)[self.robot_model.part_joints_id["hand"]]
         joints_ub = np.array(self.robot_model.joint_id_to_upper_limits)[self.robot_model.part_joints_id["hand"]]
-        joint_pos = np.clip(joint_pos, joints_lb, joints_ub)
-        return joint_pos
+        return np.clip(joint_pos, joints_lb, joints_ub)
 
-    # --------------------------------------
-    """
+    def moveHandToJointPos(self, target_joint_pos, max_speed=radians(45), option: move_option = "from_last_target"):
+        """
         modify the self.hand_target_joint_pos
-    """
-
-    def moveHandToJointPos(self, target_joint_pos, max_speed=np.deg2rad(45), option="target"):
-        if option == "real":
+        """
+        if option == "from_real":
             self.updateCurrentHandJointPos()
             current_joint_pos = self.hand_curr_joint_pos.copy()
-        elif option == "target":
+        elif option == "from_last_target":
             current_joint_pos = self.hand_target_joint_pos.copy()
         else:
             raise NameError("Invalid option.")
@@ -116,79 +99,85 @@ class LeapHandControl:
             temp_target_joint_pos = current_joint_pos * (1 - t) + target_joint_pos * t
             self.env.ctrlHandJointPos(temp_target_joint_pos)
 
-            for i in range(int(1.0 / self.control_rate / self.env.timestep)):
+            for _ in range(int(1.0 / self.control_rate / self.env.timestep)):
                 self.env.step()
 
         self.hand_target_joint_pos = target_joint_pos
 
-    # --------------------------------------
     def moveHandToInitialConfig(self):
-        target_hand_joint_pos = np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, np.pi / 2, 0, 0, 0])
-        self.moveHandToJointPos(target_hand_joint_pos, max_speed=np.deg2rad(90), option="real")
+        target_hand_joint_pos = np.array(
+            [0, 0, 0, 0, -0.05368939, -0.34361163, -0.42798057, -0.35588351, 0, 0, 0, 0, np.pi / 2, 0, 0, 0]
+        )
+        self.moveHandToJointPos(target_hand_joint_pos, max_speed=radians(90), option="from_real")
 
-    # --------------------------------------
     def initialGrasping(self):
         self.updateCurrentHandJointPos()
 
-        object_pos, object_quat = self.env.getObjectPose()
+        if self.use_real_hardware:
+            object_pos = np.array([-0.025, 0.035, 0.15])
+            object_quat = np.array([0.70710678, 0.0, 0.0, 0.70710678])
+        else:
+            object_pos, object_quat = self.env.getObjectPose()
         object_rot_mat = sciR.from_quat(object_quat).as_matrix()
 
-        finger0_pos, finger0_quat = self.getFingerGlobalPose("finger0", local_position=[0, 0, 0], option="real")
-        finger1_pos, finger1_quat = self.getFingerGlobalPose("finger1", local_position=[0, 0, 0], option="real")
-        thumb_pos, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0, 0, 0], option="real")
+        finger0_pos, finger0_quat = self.getFingerGlobalPose("finger0", local_position=[0, 0, 0], option="from_real")
+        finger1_pos, finger1_quat = self.getFingerGlobalPose("finger2", local_position=[0, 0, 0], option="from_real")
+        thumb_pos, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0, 0, 0], option="from_real")
 
-        fingertip_radius = 0.008
+        fingertip_radius = 0.0 if self.use_real_hardware else 0.008
 
         finger0_target_quat = finger0_quat.copy()
         finger1_target_quat = finger1_quat.copy()
         thumb_target_quat = thumb_quat.copy()
 
+        # First, move the hand to a config near the grasping config, but no contact
+
         # for horizontal cylinder
-        # finger0_grasp_offset = np.array([0.03 + fingertip_radius, -0.025, -0.0])
-        # finger1_grasp_offset = np.array([0.03 + fingertip_radius, 0.025, 0.0])
-        # thumb_grasp_offset = np.array([-0.03 - fingertip_radius, 0, 0])
+        finger0_grasp_offset = np.array([0.03 + fingertip_radius, -0.025, -0.0])
+        finger1_grasp_offset = np.array([0.03 + fingertip_radius, 0.025, 0.0])
+        thumb_grasp_offset = np.array([-0.03 - fingertip_radius, 0, 0])
 
         # for vertical cylinder
-        # First, move the hand to a config near the grasping config, but no contact
-        radius = 0.03 + fingertip_radius + 0.005
-        finger0_grasp_offset = np.array([radius / np.sqrt(2), -0.02, radius / np.sqrt(2)])
-        finger1_grasp_offset = np.array([radius / np.sqrt(2), -0.02, -radius / np.sqrt(2)])
-        thumb_grasp_offset = np.array([-radius, -0.02, 0])
+        # radius = 0.03 + fingertip_radius + 0.005
+        # finger0_grasp_offset = np.array([radius / np.sqrt(2), -0.02, radius / np.sqrt(2)])
+        # finger1_grasp_offset = np.array([radius / np.sqrt(2), -0.02, -radius / np.sqrt(2)])
+        # thumb_grasp_offset = np.array([-radius, -0.02, 0])
 
-        finger0_target_pos = object_rot_mat @ finger0_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
-        finger1_target_pos = object_rot_mat @ finger1_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
-        thumb_target_pos = object_rot_mat @ thumb_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+        # finger0_target_pos = object_rot_mat @ finger0_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+        # finger1_target_pos = object_rot_mat @ finger1_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
+        # thumb_target_pos = object_rot_mat @ thumb_grasp_offset.reshape(-1, 1) + object_pos.reshape(-1, 1)
 
-        finger0_res_joint_pos = self.robot_model.fingerIKSQP(
-            "finger0",
-            finger_target_pose=posQuat2Isometry3d(finger0_target_pos, finger0_target_quat),
-            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
-            finger_joint_pos_init=self.getFingerJointPos("finger0", option="real"),
-            local_position=[0, 0, 0],
-        )
-        finger1_res_joint_pos = self.robot_model.fingerIKSQP(
-            "finger1",
-            finger_target_pose=posQuat2Isometry3d(finger1_target_pos, finger1_target_quat),
-            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
-            finger_joint_pos_init=self.getFingerJointPos("finger1", option="real"),
-            local_position=[0, 0, 0],
-        )
-        thumb_res_joint_pos = self.robot_model.fingerIKSQP(
-            "thumb",
-            finger_target_pose=posQuat2Isometry3d(thumb_target_pos, thumb_target_quat),
-            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
-            finger_joint_pos_init=self.getFingerJointPos("thumb", option="real"),
-            local_position=[0, 0, 0],
-        )
+        # finger0_res_joint_pos = self.robot_model.fingerIKSQP(
+        #     "finger0",
+        #     finger_target_pose=posQuat2Isometry3d(finger0_target_pos, finger0_target_quat),
+        #     weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+        #     finger_joint_pos_init=self.getFingerJointPos("finger0", option="from_real"),
+        #     local_position=[0, 0, 0],
+        # )
+        # finger1_res_joint_pos = self.robot_model.fingerIKSQP(
+        #     "finger2",
+        #     finger_target_pose=posQuat2Isometry3d(finger1_target_pos, finger1_target_quat),
+        #     weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+        #     finger_joint_pos_init=self.getFingerJointPos("finger2", option="from_real"),
+        #     local_position=[0, 0, 0],
+        # )
+        # thumb_res_joint_pos = self.robot_model.fingerIKSQP(
+        #     "thumb",
+        #     finger_target_pose=posQuat2Isometry3d(thumb_target_pos, thumb_target_quat),
+        #     weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
+        #     finger_joint_pos_init=self.getFingerJointPos("thumb", option="from_real"),
+        #     local_position=[0, 0, 0],
+        # )
 
-        hand_target_joint_pos = np.zeros((16,))
-        hand_target_joint_pos[0:4] = finger0_res_joint_pos
-        hand_target_joint_pos[4:8] = finger1_res_joint_pos
-        hand_target_joint_pos[12:16] = thumb_res_joint_pos
-        self.moveHandToJointPos(target_joint_pos=hand_target_joint_pos, max_speed=np.deg2rad(90))
+        # hand_target_joint_pos = np.zeros((16,))
+        # hand_target_joint_pos[0:4] = finger0_res_joint_pos
+        # # hand_target_joint_pos[4:8] = finger1_res_joint_pos
+        # hand_target_joint_pos[8:12] = finger1_res_joint_pos
+        # hand_target_joint_pos[12:16] = thumb_res_joint_pos
+        # self.moveHandToJointPos(target_joint_pos=hand_target_joint_pos, max_speed=radians(90))
 
-        for i in range(int(1.0 / self.env.timestep)):
-            self.env.step()
+        # for _ in range(int(1.0 / self.env.timestep)):
+        #     self.env.step()
 
         # Second, move the hand to the grasping config and make the contact
         radius = 0.03 + fingertip_radius
@@ -204,89 +193,35 @@ class LeapHandControl:
             "finger0",
             finger_target_pose=posQuat2Isometry3d(finger0_target_pos, finger0_target_quat),
             weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
-            finger_joint_pos_init=self.getFingerJointPos("finger0", option="real"),
+            finger_joint_pos_init=self.getFingerJointPos("finger0", option="from_last_target"),
             local_position=[0, 0, 0],
         )
         finger1_res_joint_pos = self.robot_model.fingerIKSQP(
-            "finger1",
+            "finger2",
             finger_target_pose=posQuat2Isometry3d(finger1_target_pos, finger1_target_quat),
             weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
-            finger_joint_pos_init=self.getFingerJointPos("finger1", option="real"),
+            finger_joint_pos_init=self.getFingerJointPos("finger2", option="from_last_target"),
             local_position=[0, 0, 0],
         )
         thumb_res_joint_pos = self.robot_model.fingerIKSQP(
             "thumb",
             finger_target_pose=posQuat2Isometry3d(thumb_target_pos, thumb_target_quat),
             weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
-            finger_joint_pos_init=self.getFingerJointPos("thumb", option="real"),
+            finger_joint_pos_init=self.getFingerJointPos("thumb", option="from_last_target"),
             local_position=[0, 0, 0],
         )
 
         hand_target_joint_pos = np.zeros((16,))
         hand_target_joint_pos[0:4] = finger0_res_joint_pos
-        hand_target_joint_pos[4:8] = finger1_res_joint_pos
+        # hand_target_joint_pos[4:8] = finger1_res_joint_pos
+        hand_target_joint_pos[8:12] = finger1_res_joint_pos
         hand_target_joint_pos[12:16] = thumb_res_joint_pos
-        self.moveHandToJointPos(target_joint_pos=hand_target_joint_pos, max_speed=np.deg2rad(90))
+        print(hand_target_joint_pos)
+        self.moveHandToJointPos(target_joint_pos=hand_target_joint_pos, max_speed=radians(90))
 
         for i in range(int(1.0 / self.env.timestep)):
             self.env.step()
 
-    # --------------------------------------
-    def initialGraspingFixed(self):
-        self.updateCurrentHandJointPos()
-
-        object_pos = np.array([-0.02, 0.015, 0.12])
-
-        _, finger0_quat = self.getFingerGlobalPose("finger0", local_position=[0, 0, 0], option="real")
-        _, finger1_quat = self.getFingerGlobalPose("finger1", local_position=[0, 0, 0], option="real")
-        _, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0, 0, 0], option="real")
-
-        fingertip_radius = 0
-        finger0_grasp_offset = np.array([0.03 + fingertip_radius, -0.025, -0.0])
-        finger1_grasp_offset = np.array([0.03 + fingertip_radius, 0.025, 0.0])
-        thumb_grasp_offset = np.array([-0.03 - fingertip_radius, 0, 0])
-
-        finger0_target_pos = finger0_grasp_offset + object_pos
-        finger1_target_pos = finger1_grasp_offset + object_pos
-        thumb_target_pos = thumb_grasp_offset + object_pos
-
-        finger0_target_quat = finger0_quat.copy()
-        finger1_target_quat = finger1_quat.copy()
-        thumb_target_quat = thumb_quat.copy()
-
-        # 每个手指分别求的效率更高
-        finger0_res_joint_pos = self.robot_model.fingerIKSQP(
-            "finger0",
-            finger_target_pose=posQuat2Isometry3d(finger0_target_pos, finger0_target_quat),
-            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
-            finger_joint_pos_init=self.getFingerJointPos("finger0", option="real"),
-            local_position=[0, 0, 0],
-        )
-        finger1_res_joint_pos = self.robot_model.fingerIKSQP(
-            "finger1",
-            finger_target_pose=posQuat2Isometry3d(finger1_target_pos, finger1_target_quat),
-            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
-            finger_joint_pos_init=self.getFingerJointPos("finger1", option="real"),
-            local_position=[0, 0, 0],
-        )
-        thumb_res_joint_pos = self.robot_model.fingerIKSQP(
-            "thumb",
-            finger_target_pose=posQuat2Isometry3d(thumb_target_pos, thumb_target_quat),
-            weights=np.diag([10, 10, 5, 0.001, 0, 0.001]),
-            finger_joint_pos_init=self.getFingerJointPos("thumb", option="real"),
-            local_position=[0, 0, 0],
-        )
-
-        hand_target_joint_pos = np.zeros((16,))
-        hand_target_joint_pos[0:4] = finger0_res_joint_pos
-        hand_target_joint_pos[4:8] = finger1_res_joint_pos
-        hand_target_joint_pos[12:16] = thumb_res_joint_pos
-        self.moveHandToJointPos(target_joint_pos=hand_target_joint_pos, max_speed=np.deg2rad(90))
-
-        for i in range(int(1.0 / self.env.timestep)):
-            self.env.step()
-
-    # --------------------------------------
     def moveObject(self, target_object_pos=None, target_object_quat=None, target_rel_movement=None):
         if target_rel_movement is not None:
             object_pos, object_quat = self.env.getQRCodePose()
@@ -297,20 +232,27 @@ class LeapHandControl:
             target_object_quat = target_object_quat.copy()
 
         self.env.visDesiredPos(target_object_pos)
-        self.env.step(refresh=True)
+        # self.env.step(refresh=True)
+        self.env.step()
 
         # repeat the trajectory optimization, like an MPC (very poor performance currently)
-        for control_iter in range(1):
+        for control_iter in range(3):
             self.updateCurrentHandJointPos()
 
             object_pos, object_quat = self.env.getQRCodePose()
             object_pose = posQuat2Isometry3d(object_pos, object_quat)
 
-            finger0_pos, finger0_quat = self.getFingerGlobalPose("finger0", local_position=[0, 0, 0], option="target")
+            finger0_pos, finger0_quat = self.getFingerGlobalPose(
+                "finger0", local_position=[0, 0, 0], option="from_last_target"
+            )
             finger0_pose = posQuat2Isometry3d(finger0_pos, finger0_quat)
-            finger1_pos, finger1_quat = self.getFingerGlobalPose("finger1", local_position=[0, 0, 0], option="target")
+            finger1_pos, finger1_quat = self.getFingerGlobalPose(
+                "finger2", local_position=[0, 0, 0], option="from_last_target"
+            )
             finger1_pose = posQuat2Isometry3d(finger1_pos, finger1_quat)
-            thumb_pos, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0, 0, 0], option="target")
+            thumb_pos, thumb_quat = self.getFingerGlobalPose(
+                "thumb", local_position=[0, 0, 0], option="from_last_target"
+            )
             thumb_pose = posQuat2Isometry3d(thumb_pos, thumb_quat)
 
             thumb_pose_in_object = np.linalg.inv(object_pose) @ thumb_pose
@@ -324,7 +266,7 @@ class LeapHandControl:
                 object_target_pose=posQuat2Isometry3d(target_object_pos, target_object_quat),
                 thumb_target_rel_pose=thumb_pose_in_object,
                 finger0_target_rel_pose=finger0_pose_in_object,
-                finger1_target_rel_pose=finger1_pose_in_object,
+                finger2_target_rel_pose=finger1_pose_in_object,
                 weights_object_pose=[10, 10, 10, 0.01, 0.01, 0.0],
                 weights_rel_pose=[10, 10, 10, 0, 0, 0],
                 weights_joint_vel=1e-4,
@@ -333,11 +275,11 @@ class LeapHandControl:
             )
 
             for i, hand_joint_pos in enumerate(traj_hand_joint_pos):
-                self.moveHandToJointPos(target_joint_pos=hand_joint_pos, max_speed=np.deg2rad(10))
+                self.moveHandToJointPos(target_joint_pos=hand_joint_pos, max_speed=radians(10))
                 # print(f"Reached waypoint {i}.")
 
             # wait for one second
-            for i in range(int(1.0 / self.env.timestep)):
+            for _ in range(int(1.0 / self.env.timestep)):
                 self.env.step()
 
             object_pos, _ = self.env.getQRCodePose()
@@ -347,18 +289,16 @@ class LeapHandControl:
             if control_err < planned_object_err:  # the criterion for switching to the next waypoint
                 break
 
-        b_back_to_initial_config = False
         # back to the intial configuration (currently, sliding easily happens in simulation and leads to failure)
-        if b_back_to_initial_config:
+        if self.back_to_initial_config:
             for i, hand_joint_pos in enumerate(np.flip(traj_hand_joint_pos, axis=0)):
-                self.moveHandToJointPos(target_joint_pos=hand_joint_pos, max_speed=np.deg2rad(10))
+                self.moveHandToJointPos(target_joint_pos=hand_joint_pos, max_speed=radians(10))
             for i in range(int(1.0 / self.env.timestep)):  # wait for one second
                 self.env.step()
 
         return control_err
 
 
-# --------------------------------------
 def test1():
     rospack = rospkg.RosPack()
     urdf_path = os.path.join(rospack.get_path("my_robot_description"), "urdf/leaphand.urdf")
@@ -370,11 +310,34 @@ def test1():
         print(task_cfg)
     target_waypoints = task_cfg["waypoints"]
 
-    ctrl = LeapHandControl(robot_model=robot_model, b_use_ros=False)
+    ctrl = LeapHandControl(robot_model=robot_model, use_real_hardware=False)
 
     for i in range(1):  # repeat the whole task
         ctrl.moveHandToInitialConfig()
         ctrl.initialGrasping()
+        # ctrl.moveHandToJointPos(
+        #     target_joint_pos=np.array(
+        #         [
+        #             -0.3129295118713377,
+        #             -0.742444158401489,
+        #             1.9312845460510253,
+        #             0.06903183380126976,
+        #             0.7792648069000243,
+        #             0.9694787255859378,
+        #             0.6718863240814208,
+        #             1.3514395944213866,
+        #             -0.3451429613494872,
+        #             0.03068220535278332,
+        #             -0.4433177717590329,
+        #             -0.02454102119445778,
+        #             -0.2116867311859129,
+        #             0.6964298478698732,
+        #             1.874527095947266,
+        #             0.4770706884002688,
+        #         ]
+        #     ),
+        #     max_speed=radians(90),
+        # )
 
         object_pos, object_quat = ctrl.env.getQRCodePose()
         all_control_err = []
@@ -394,24 +357,28 @@ def test1():
         ctrl.env.physics.reset()
 
 
-# --------------------------------------
-def test2():
-    rospy.init_node("leaphand_real")
-
+def read_configs():
     rospack = rospkg.RosPack()
-    urdf_path = os.path.join(rospack.get_path("my_robot_description"), "urdf/leaphand.urdf")
-    robot_model = LeapHandPinocchio(urdf_path=urdf_path)
+    urdf_path = Path(rospack.get_path("my_robot_description")) / "urdf" / "leaphand.urdf"
+    robot_model = LeapHandPinocchio(urdf_path=str(urdf_path))
 
-    task_cfg_path = os.path.join(rospack.get_path("leap_task_A"), "config/taskA.yaml")
+    task_cfg_path = Path(rospack.get_path("leap_task_A")) / "config" / "taskA.yaml"
     with open(task_cfg_path) as stream:
         task_cfg = yaml.safe_load(stream)
         print(task_cfg)
     target_waypoints = task_cfg["waypoints"]
+    return robot_model, target_waypoints
 
-    ctrl = LeapHandControl(robot_model=robot_model, b_use_ros=True)
+
+def real_test():
+    rospy.init_node("leaphand_real")
+    robot_model, target_waypoints = read_configs()
+
+    ctrl = LeapHandControl(robot_model=robot_model, use_real_hardware=True)
 
     ctrl.moveHandToInitialConfig()
-    ctrl.initialGraspingFixed()
+    time.sleep(1)
+    ctrl.initialGrasping()
 
     print("Please press 'Enter' to continue ...")
     input()
@@ -441,7 +408,7 @@ def searchBestObjectPosition():
         print(task_cfg)
     target_waypoints = task_cfg["waypoints"]
 
-    ctrl = LeapHandControl(robot_model=robot_model, b_use_ros=False)
+    ctrl = LeapHandControl(robot_model=robot_model, use_real_hardware=False)
 
     res = {"object_pos": [], "all_control_err": [], "ave_control_err": []}
 
@@ -490,138 +457,6 @@ def searchBestObjectPosition():
 # ----------------------------------------------
 if __name__ == "__main__":
     test1()  # simulation
-    # test2() # real-world
+    # test2()  # real-world
 
     # searchBestObjectPosition()
-
-
-# ---------------------- backup ---------------------------
-
-
-# # --------------------------------------
-#     def moveObject(self, target_object_pos=None, target_object_quat=None, target_rel_movement=None):
-#         if target_rel_movement is not None:
-#             object_pos, object_quat = self.env.getQRCodePose()
-#             target_object_pos = object_pos + target_rel_movement
-#             target_object_quat = object_quat.copy()
-#         if target_object_pos is not None:
-#             target_object_pos = target_object_pos.copy()
-#             target_object_quat = target_object_quat.copy()
-
-#         self.env.visDesiredPos(target_object_pos)
-#         self.env.step()
-
-#         self.updateCurrentHandJointPos()
-
-#         object_pos, object_quat = self.env.getQRCodePose()
-#         object_pose = posQuat2Isometry3d(object_pos, object_quat)
-
-#         finger0_pos, finger0_quat = self.getFingerGlobalPose("finger0", local_position=[0, 0, 0], option="target")
-#         finger0_pose = posQuat2Isometry3d(finger0_pos, finger0_quat)
-#         finger1_pos, finger1_quat = self.getFingerGlobalPose("finger1", local_position=[0, 0, 0], option="target")
-#         finger1_pose = posQuat2Isometry3d(finger1_pos, finger1_quat)
-#         thumb_pos, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0, 0, 0], option="target")
-#         thumb_pose = posQuat2Isometry3d(thumb_pos, thumb_quat)
-
-#         thumb_pose_in_object = np.linalg.inv(object_pose) @ thumb_pose
-#         finger0_pose_in_object = np.linalg.inv(object_pose) @ finger0_pose
-#         finger1_pose_in_object = np.linalg.inv(object_pose) @ finger1_pose
-
-#         print("Start trajectory optimization ...")
-#         traj_hand_joint_pos = self.robot_model.relaxedTrajectoryOptimization2(
-#             T=5,
-#             delta_t=0.5,
-#             object_target_pose=posQuat2Isometry3d(target_object_pos, target_object_quat),
-#             thumb_target_rel_pose=thumb_pose_in_object,
-#             finger0_target_rel_pose=finger0_pose_in_object,
-#             finger1_target_rel_pose=finger1_pose_in_object,
-#             weights_object_pose=[10, 10, 10, 0.01, 0.01, 0.0],
-#             weights_rel_pose=[10, 10, 10, 0.0, 0.0, 0.0],
-#             weights_joint_vel=1e-4,
-#             object_pose_init=object_pose,
-#             hand_joint_pos_init=self.hand_curr_joint_pos.copy(),
-#         )
-
-#         for i, hand_joint_pos in enumerate(traj_hand_joint_pos):
-#             self.moveHandToJointPos(target_joint_pos=hand_joint_pos, max_speed=np.deg2rad(10))
-#             print(f"Reached waypoint {i}.")
-
-#         # wait for one second
-#         for i in range(int(1.0 / self.env.timestep)):
-#             self.env.step()
-
-#         object_pos, _ = self.env.getQRCodePose()
-#         control_err = np.linalg.norm(object_pos - target_object_pos)
-#         print("control_err: ", control_err)
-
-#         return control_err
-
-#     # --------------------------------------
-#     def moveObjectMPC(self, target_object_pos=None, target_object_quat=None, target_rel_movement=None):
-#         if target_rel_movement is not None:
-#             object_pos, object_quat = self.env.getQRCodePose()
-#             target_object_pos = object_pos + target_rel_movement
-#             target_object_quat = object_quat.copy()
-#         if target_object_pos is not None:
-#             target_object_pos = target_object_pos.copy()
-#             target_object_quat = target_object_quat.copy()
-
-#         for control_iter in range(1):
-#             self.env.visDesiredPos(target_object_pos)
-#             self.env.step(refresh=True)
-
-#             self.updateCurrentHandJointPos()
-
-#             object_pos, object_quat = self.env.getQRCodePose()
-#             object_pose = posQuat2Isometry3d(object_pos, object_quat)
-
-#             finger0_pos, finger0_quat = self.getFingerGlobalPose("finger0", local_position=[0, 0, 0], option="target")
-#             finger0_pose = posQuat2Isometry3d(finger0_pos, finger0_quat)
-#             finger1_pos, finger1_quat = self.getFingerGlobalPose("finger1", local_position=[0, 0, 0], option="target")
-#             finger1_pose = posQuat2Isometry3d(finger1_pos, finger1_quat)
-#             thumb_pos, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0, 0, 0], option="target")
-#             thumb_pose = posQuat2Isometry3d(thumb_pos, thumb_quat)
-
-#             thumb_pose_in_object = np.linalg.inv(object_pose) @ thumb_pose
-#             finger0_pose_in_object = np.linalg.inv(object_pose) @ finger0_pose
-#             finger1_pose_in_object = np.linalg.inv(object_pose) @ finger1_pose
-
-#             print("Start trajectory optimization ...")
-#             traj_hand_joint_pos = self.robot_model.relaxedTrajectoryOptimization2(
-#                 T=1,
-#                 delta_t=0.5,
-#                 object_target_pose=posQuat2Isometry3d(target_object_pos, target_object_quat),
-#                 thumb_target_rel_pose=thumb_pose_in_object,
-#                 finger0_target_rel_pose=finger0_pose_in_object,
-#                 finger1_target_rel_pose=finger1_pose_in_object,
-#                 weights_object_pose=[10, 10, 10, 0.01, 0.01, 0.0],
-#                 weights_rel_pose=[10, 10, 10, 0, 0, 0],
-#                 weights_joint_vel=1e-4,
-#                 object_pose_init=object_pose,
-#                 hand_joint_pos_init=self.hand_curr_joint_pos.copy(),
-#             )
-
-#             for i, hand_joint_pos in enumerate(traj_hand_joint_pos):
-#                 self.moveHandToJointPos(target_joint_pos=hand_joint_pos, max_speed=np.deg2rad(10))
-#                 print(f"Reached waypoint {i}.")
-
-#             # wait
-#             for i in range(int(0.2 / self.env.timestep)):
-#                 self.env.step()
-
-#             object_pos, _ = self.env.getQRCodePose()
-#             control_err = np.linalg.norm(object_pos - target_object_pos)
-#             print("control_err: ", control_err)
-
-#             if control_err < 1e-3:
-#                 break
-
-#         # wait for one second
-#         for i in range(int(1.0 / self.env.timestep)):
-#             self.env.step()
-
-#         object_pos, _ = self.env.getQRCodePose()
-#         control_err = np.linalg.norm(object_pos - target_object_pos)
-#         print("control_err: ", control_err)
-
-#         return control_err
