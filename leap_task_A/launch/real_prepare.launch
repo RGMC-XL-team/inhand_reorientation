@@ -38,6 +38,7 @@
   <include file="$(find leap_hardware)/launch/leap_bringup.launch">
     <arg name="free_move" value="false" />
     <arg name="enable_visualization" value="true" />
+    <arg name="publish_joint_state" value="false" />
     <arg name="use_rviz" value="false" />
   </include>
 
