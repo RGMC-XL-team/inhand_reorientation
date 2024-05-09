@@ -9,7 +9,7 @@
 
   <param name="object_type" type="string" value="cube_50mm_new" />
   <rosparam command="load"
-    file="$(find my_robot_description)/config/default_leap_cube_50mm_new.yaml" />
+    file="$(find my_robot_description)/config/default_leap_cube_50mm_v5ccw.yaml" />
 
   <node
     name="joint_state_publisher_gui"

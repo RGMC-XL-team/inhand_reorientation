@@ -68,7 +68,6 @@
         <param name="enable_second_camera" value="true" />
         <param name="second_camera_name" value="$(arg camera_1_name)" />
         <param name="object_name" value="cube" />
-        <!-- <param name="smooth_factor" value="0.25" /> -->
         <param name="smooth_factor" value="0.1" />
         <param name="pos_diff_thresh" value="0.02" />
         <param name="rot_diff_thresh" value="0.25" />

@@ -9,12 +9,17 @@ class TaskBPose(object):
         self._quat_xyzw = np.array([0, 0, 0, 1])
         self._euler_xyz = np.zeros(3,)
         self._pos_xyz = np.zeros(3,)
+        self._z_axis = np.array([0, 0, 1])
 
     def set_from_pos_quat(self, pos, quat):
         self._pos_xyz = pos.copy()
         self._quat_xyzw = quat.copy()
         self._euler_xyz = get_euler_from_quat(quat)
         self._transform = get_4x4_transform_from_pos_quat(pos, quat)
+        self._z_axis = self._transform[:3, 2].copy()
+
+    def z_axis(self):
+        return self._z_axis.copy()
 
     def yaw(self):
         return restrict_angle_in_pi(self._euler_xyz[2])
@@ -173,3 +178,10 @@ def get_pinocchio_7x_pose_from_4x4_transform(transform):
 
 def normalize_array(array):
     return array / np.linalg.norm(array, ord=2, axis=-1, keepdims=True)
+
+
+def compute_angle_between_two_axis(axis1, axis2):
+    # normalize
+    axis1 = np.array(axis1) / np.linalg.norm(axis1)
+    axis2 = np.array(axis2) / np.linalg.norm(axis2)
+    return np.arccos(np.dot(axis1, axis2))

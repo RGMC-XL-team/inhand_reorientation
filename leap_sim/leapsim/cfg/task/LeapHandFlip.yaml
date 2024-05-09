@@ -91,10 +91,10 @@ randomization_params:
 
 env:
   # debug and save
-  # debug:
-  #   record:
-  #     duration: 20.0
-  #     suffix: "rotz_goal"
+  debug:
+    record:
+      duration: 20.0
+      suffix: "rotz_goal"
   enableDebugVis: False
 
   # environment basic

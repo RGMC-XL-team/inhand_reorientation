@@ -17,20 +17,26 @@ from std_msgs.msg import String
 from std_srvs.srv import Trigger
 
 from leap_task_B.taskB_utils import TaskBInfo, TaskBState, TaskBOfflineMode, DESIRED_YAW_DICT
-from leap_task_B.taskB_utils import compute_angle_distance, get_z_axis_from_pos_quat
+from leap_task_B.taskB_utils import (
+    compute_angle_distance,
+    get_z_axis_from_pos_quat,
+    compute_angle_between_two_axis
+)
 from leap_hardware.srv import face_pose, face_poseRequest, object_state
 from leap_task_B.msg import RunPolicyAction, RunPolicyGoal
 
 
 class TaskBHighLevel(object):
     def __init__(self) -> None:
+        self.config = yaml.safe_load(open(os.path.join(rospkg.RosPack().get_path("leap_task_B"), "config/taskB_XL.yaml")))
         self._set_default()
         self._initialize_service_and_actions()
+        self._initialize_anomaly_detection()
 
     def _set_default(self):
         self.info = TaskBInfo()
-        _config = yaml.safe_load(open(os.path.join(rospkg.RosPack().get_path("leap_task_B"), "config/taskB_XL.yaml")))
-        self.info.load(_config)
+        # _config = yaml.safe_load(open(os.path.join(rospkg.RosPack().get_path("leap_task_B"), "config/taskB_XL.yaml")))
+        self.info.load(self.config)
 
         self.fsm_hz = rospy.get_param("fsm_hz", 30)
         self.fsm_rate = rospy.Rate(self.fsm_hz)
@@ -38,7 +44,7 @@ class TaskBHighLevel(object):
         self.info.current_face = "A"
 
         self.online_mode = rospy.get_param("online_mode", False)
-        self.forced_reset = _config["control_options"]["forced_reset"]
+        self.forced_reset = self.config["control_options"]["forced_reset"]
 
     def _initialize_service_and_actions(self):
         self.action_name = rospy.get_param("action_name", "run_policy")
@@ -55,6 +61,34 @@ class TaskBHighLevel(object):
                 service_name = f"/rgcm_eval/{_action}"
                 rospy.wait_for_service(service_name)
                 self._rgmc_client[_action] = rospy.ServiceProxy(service_name, Trigger)
+
+    def _initialize_anomaly_detection(self):
+        """Initialize anomaly detection as a timer"""
+        anomaly_config = self.config["anomaly_detection"]
+        self._anomaly_detector = rospy.Timer(
+            period=rospy.Duration(anomaly_config["period"]),
+            callback=self._check_anomaly
+        )
+        self.anomaly_config = anomaly_config
+
+    def _check_anomaly(self, event=None):
+        """Check if anomaly occurs in the manipulation"""
+        anomaly_detected = False
+
+        # for rotation, check if the object is tilt too much
+        if self.info.current_state in [TaskBState.ROTATE_CW, TaskBState.ROTATE_CCW]:
+            current_z_axis = self.info.object_local_pose.z_axis()
+            if compute_angle_between_two_axis(current_z_axis, [0., 0., 1.]) > self.anomaly_config["rot_tilt_angle_thresh"]:
+                anomaly_detected = True
+
+        # execute reset hand if anomaly detected
+        if anomaly_detected:
+            rospy.logerr("Anomaly detected, will reset hand!")
+            self._action_client.cancel_goal()
+            self.call_reset_hand()
+            if self.info.current_state in [TaskBState.ROTATE_CW, TaskBState.ROTATE_CCW]:
+                self.info.current_state = TaskBState.BEFORE_ROTATE
+
 
     def _check_timeout(self):
         self.info.time_spent = rospy.get_time() - self.info.time_current_start
@@ -154,6 +188,13 @@ class TaskBHighLevel(object):
         else:
             return False
         
+    def call_reset_hand(self):
+        """Reset the hand to home position"""
+        self.info.running_policy = "RESET_HAND"
+        goal = RunPolicyGoal(policy_name="RESET_HAND")
+        self._action_client.send_goal(goal)
+        self._action_client.wait_for_result()
+        
     def call_reset_object(self, current_policy="ROT"):
         """Reset the object to the center"""
         self.info.running_policy = f"RESET_OBJECT_{current_policy}"
@@ -166,10 +207,7 @@ class TaskBHighLevel(object):
         self.info.time_current_start = rospy.get_time()
 
         # reset hand
-        self.info.running_policy = "RESET_HAND"
-        goal = RunPolicyGoal(policy_name="RESET_HAND")
-        self._action_client.send_goal(goal)
-        self._action_client.wait_for_result()
+        self.call_reset_hand()
         rospy.loginfo("Hand reset done!")
         
         while not self._check_timeout():

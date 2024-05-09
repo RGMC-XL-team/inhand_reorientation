@@ -31,6 +31,7 @@ class PoseStatus(Enum):
     UPDATED = 0
     OUTDATED = 1
     NOTFOUND = 2
+    FOUND_IN_CAM1 = 3
 
 
 class ObjectPosePublisher:
@@ -42,7 +43,7 @@ class ObjectPosePublisher:
         publish_rate = rospy.get_param("/cube_pose_publisher/publish_rate", 30)
         self.rate = rospy.Rate(publish_rate)
 
-        self.enable_second_camera = rospy.get_param("/cube_pose_publisher/enable_second_camera", False)
+        self.enable_second_camera = rospy.get_param("/cube_pose_publisher/enable_second_camera", True)
         if self.enable_second_camera:
             self.second_camera_name = rospy.get_param("/cube_pose_publisher/second_camera_name", "camera_d435")
 
@@ -195,9 +196,10 @@ class ObjectPosePublisher:
             # check if visible in the second camera
             if self.tag_status[tag] == PoseStatus.OUTDATED and self.enable_second_camera:
                 for detection in tag_detections.detections:
-                    if detection.id == tag:
-                        self.tag_status[tag] = PoseStatus.UPDATED
-                        self.tag_pose[tag] = rutil.ros_pose_to_rigid_transform(detection.pose.pose)
+                    if detection.id[0] == tag:
+                        self.tag_status[tag] = PoseStatus.FOUND_IN_CAM1
+                        T_tag2cam = rutil.ros_pose_to_rigid_transform(detection.pose.pose.pose)
+                        self.tag_pose[tag] = np.matmul(self.T_camera1_to_world, T_tag2cam)
 
         # # test covariance estimator
         # tag_pose_covariance = {}
@@ -298,7 +300,8 @@ class ObjectPosePublisher:
     
     def get_face_pose_handler(self, req):
         tag = self.face_to_tag_map[req.face][0]
-        if self.tag_status[tag] == PoseStatus.UPDATED:
+        if self.tag_status[tag] == PoseStatus.UPDATED or \
+            self.tag_status[tag] == PoseStatus.FOUND_IN_CAM1:
             T_tag2world = self.tag_pose[tag]
             T_face2world = np.matmul(T_tag2world, self.face_to_tag_transform)
             return {

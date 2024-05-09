@@ -16,6 +16,10 @@ control:
 control_options:
   forced_reset: False # forced reset before rot and flip (default: False)
 
+anomaly_detection:
+  period: 0.2 # the period for anomaly detection (default: 0.2)
+  rot_tilt_angle_thresh: 0.5 # the tilt angle threshold for rot anomaly detection (default: 0.5)
+
 # object_center_pos: [-0.0592509, 0.02004605, 0.08418902] # the object center position in the world frame (default: [-0.0592509, 0.03504605, 0.08918902])
 object_center_pos: [-0.055, 0.02504605, 0.08418902]
 

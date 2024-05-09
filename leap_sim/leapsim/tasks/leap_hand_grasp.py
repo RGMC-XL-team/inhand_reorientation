@@ -88,11 +88,16 @@ class LeapHandGrasp(LeapHandRot):
         else:
             self.fingertip_dist_min = 0.0
 
+        if "force_high_finger2" in cfg["env"]:
+            self.force_high_finger2 = cfg["env"]["force_high_finger2"]
+        else:
+            self.force_high_finger2 = False
+
         if "grasp_cache_len" not in self.cfg["env"]:
             self.cfg["env"]["grasp_cache_len"] = 5e4
 
         self.random_reset_method = self.cfg["env"]["randomGraspMethod"]
-        assert self.random_reset_method in ["euler_angle", "euler_angle_for_flip", "euler_angle_for_rot", "original", "rot_free_yaw"]
+        assert self.random_reset_method in ["euler_angle", "euler_angle_for_flip", "euler_angle_for_rot", "original", "rot_free_yaw", "flip_small_noise"]
 
         # self.fix_reset_quat = self.cfg['env']['fix_reset_quat']
 
@@ -173,10 +178,17 @@ class LeapHandGrasp(LeapHandRot):
             new_object_rot[:] = 0
             new_object_rot[:, -1] = 1
         elif self.random_reset_method == "rot_free_yaw":
+            """generate for LeapHandRot, yaw is free, pitch and roll are zero"""
             zero_roll = torch.zeros(len(env_ids),)
             zero_pitch = torch.zeros(len(env_ids),)
             random_yaw = torch_rand_float(-1, 1, (len(env_ids), 1), device=self.device).squeeze() * torch.pi
-            new_object_rot = quat_from_euler_xyz(zero_pitch, zero_roll, random_yaw)
+            new_object_rot = quat_from_euler_xyz(zero_roll, zero_pitch, random_yaw)
+        elif self.random_reset_method == "flip_small_noise":
+            """generate for LeapHandFlip, add noise to x, y, yaw, and fix z, roll, pitch"""
+            random_yaw = torch_rand_float(-0.25, 0.25, (len(env_ids), 1), device=self.device).squeeze()
+            zero_roll = torch.zeros(len(env_ids),)
+            zero_pitch = torch.zeros(len(env_ids),)
+            new_object_rot = randomize_rotation_from_euler(zero_roll, zero_pitch, random_yaw)
         elif self.random_reset_method == "euler_angle":
             new_object_rot = randomize_rotation_from_euler(rand_rpy[:, 0], rand_rpy[:, 1], rand_rpy[:, 2])
         elif self.random_reset_method == "euler_angle_for_rot":
@@ -289,8 +301,13 @@ class LeapHandGrasp(LeapHandRot):
         )
         # 6) all fingertips should not be too near (avoid collisions)
         cond6 = (fingertip_pairwise_dist >= self.fingertip_dist_min).all(-1)
+        # 7) force finger2 is high
+        if self.force_high_finger2:
+            cond7 = ((obj_pos[..., 2] + 0.01).squeeze() - finger_pos[:, 2, 2]) <= 0
+        else:
+            cond7 = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
 
-        cond = cond1.float() * cond2.float() * cond3.float() * cond4.float() * cond5.float() * cond6.float()
+        cond = cond1.float() * cond2.float() * cond3.float() * cond4.float() * cond5.float() * cond6.float() * cond7.float()
         # reset if any of the above condition does not hold
         self.reset_buf[cond < 1] = 1
         self.reset_buf[self.progress_buf >= self.max_episode_length] = 1
