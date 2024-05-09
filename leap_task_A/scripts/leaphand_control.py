@@ -377,7 +377,6 @@ def real_test():
     ctrl = LeapHandControl(robot_model=robot_model, use_real_hardware=True)
 
     ctrl.moveHandToInitialConfig()
-    time.sleep(1)
     ctrl.initialGrasping()
 
     print("Please press 'Enter' to continue ...")
