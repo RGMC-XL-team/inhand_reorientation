@@ -696,6 +696,65 @@ class LeapHandPinocchio:
             jaco[:, 0:22] = np.eye(22)
             return jaco
 
+        def collisionConstraint(val):
+            val = val.reshape(T + 1, -1)
+            traj_hand_joint_pos = val[:, 6 : 6 + 16]
+
+            traj_constraints = np.zeros((T, 4))
+            for t in range(1, T + 1):
+                self.updateFK("hand", traj_hand_joint_pos[t, :])
+                critical_frame_0_0_pos, _ = self.getFrameGlobalPose(frame_name="critical_link_0_0")
+                critical_frame_1_0_pos, _ = self.getFrameGlobalPose(frame_name="critical_link_1_0")
+                critical_frame_0_1_pos, _ = self.getFrameGlobalPose(frame_name="critical_link_0_1")
+                critical_frame_1_1_pos, _ = self.getFrameGlobalPose(frame_name="critical_link_1_1")
+                dist_0 = np.linalg.norm(critical_frame_0_0_pos - critical_frame_1_0_pos)
+                dist_1 = np.linalg.norm(critical_frame_0_0_pos - critical_frame_1_1_pos)
+                dist_2 = np.linalg.norm(critical_frame_0_1_pos - critical_frame_1_0_pos)
+                dist_3 = np.linalg.norm(critical_frame_0_1_pos - critical_frame_1_1_pos)
+
+                traj_constraints[t - 1, 0] = dist_0 - 0.04  # >= 0
+                traj_constraints[t - 1, 1] = dist_1 - 0.04
+                traj_constraints[t - 1, 2] = dist_2 - 0.04
+                traj_constraints[t - 1, 3] = dist_3 - 0.04
+
+            return traj_constraints.reshape(-1)  # >= 0
+
+        def collisionConstraintJaco(val):
+            val = val.reshape(T + 1, -1)
+            traj_hand_joint_pos = val[:, 6 : 6 + 16]
+
+            whole_jaco = np.zeros((T, 4, T + 1, 6 + 16))
+            for t in range(1, T + 1):
+                self.updateJacobians("hand", traj_hand_joint_pos[t, :])  # will call FK internally
+                critical_frame_0_0_pos, _ = self.getFrameGlobalPose(frame_name="critical_link_0_0")
+                critical_frame_1_0_pos, _ = self.getFrameGlobalPose(frame_name="critical_link_1_0")
+                critical_frame_0_1_pos, _ = self.getFrameGlobalPose(frame_name="critical_link_0_1")
+                critical_frame_1_1_pos, _ = self.getFrameGlobalPose(frame_name="critical_link_1_1")
+
+                critical_frame_0_0_jaco = self.getFrameGlobalJacobian("critical_link_0_0", joint_part_name="hand")
+                critical_frame_1_0_jaco = self.getFrameGlobalJacobian("critical_link_1_0", joint_part_name="hand")
+                critical_frame_0_1_jaco = self.getFrameGlobalJacobian("critical_link_0_1", joint_part_name="hand")
+                critical_frame_1_1_jaco = self.getFrameGlobalJacobian("critical_link_1_1", joint_part_name="hand")
+
+                diff = critical_frame_0_0_pos - critical_frame_1_0_pos
+                whole_jaco[t - 1, 0, t, 6:] = (diff / np.linalg.norm(diff)).reshape(1, -1) @ (
+                    critical_frame_0_0_jaco[0:3, :] - critical_frame_1_0_jaco[0:3, :]
+                )
+                diff = critical_frame_0_0_pos - critical_frame_1_1_pos
+                whole_jaco[t - 1, 1, t, 6:] = (diff / np.linalg.norm(diff)).reshape(1, -1) @ (
+                    critical_frame_0_0_jaco[0:3, :] - critical_frame_1_1_jaco[0:3, :]
+                )
+                diff = critical_frame_0_1_pos - critical_frame_1_0_pos
+                whole_jaco[t - 1, 2, t, 6:] = (diff / np.linalg.norm(diff)).reshape(1, -1) @ (
+                    critical_frame_0_1_jaco[0:3, :] - critical_frame_1_0_jaco[0:3, :]
+                )
+                diff = critical_frame_0_1_pos - critical_frame_1_1_pos
+                whole_jaco[t - 1, 3, t, 6:] = (diff / np.linalg.norm(diff)).reshape(1, -1) @ (
+                    critical_frame_0_1_jaco[0:3, :] - critical_frame_1_1_jaco[0:3, :]
+                )
+
+            return whole_jaco.reshape(T * 4, (T + 1) * (6 + 16))
+
         # def jointVelIneqConstraint(val):
         #     val = val.reshape(T + 1, -1)
         #     _, _, traj_hand_joint_pos = val[:, 0:3], val[:, 3:6], val[:, 6 : 6 + 16]
@@ -705,7 +764,15 @@ class LeapHandPinocchio:
         #     return -ineq.reshape(-1)
 
         # constraints_list = [dict(type="eq", fun=x0EqConstraint), dict(type="ineq", fun=jointVelIneqConstraint)]
-        constraints_list = [dict(type="eq", fun=x0EqConstraint, jac=x0EqConstraintJaco)]
+        constraints_list = [
+            dict(type="eq", fun=x0EqConstraint, jac=x0EqConstraintJaco),
+            dict(type="ineq", fun=collisionConstraint, jac=collisionConstraintJaco),
+        ]
+        # # constraints_list = [
+        #     dict(type="eq", fun=x0EqConstraint, jac=x0EqConstraintJaco),
+        #     dict(type="ineq", fun=collisionConstraint),
+        # ]
+        # constraints_list = [dict(type="eq", fun=x0EqConstraint, jac=x0EqConstraintJaco)]
         # constraints_list = []
 
         res = minimize(

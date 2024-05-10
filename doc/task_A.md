@@ -11,6 +11,7 @@ pip install mujoco
 pip install git+https://github.com/google-deepmind/dm_control.git # install the latest dm_control
 pip install rospkg
 pip install pandas
+pip install scikit-learn
 ```
 
 ## Usage
