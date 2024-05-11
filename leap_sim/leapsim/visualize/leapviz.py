@@ -28,8 +28,10 @@ def main_display_generated_grasp_cache():
     NUM_DISPLAYS = 30
     # CACHE_PREFIX = "custom_grasp_cache_v2high"
     # CACHE_PREFIX = "custom_grasp_cache_v4cw"
-    CACHE_PREFIX = "custom_grasp_cache_v5ccw"
+    # CACHE_PREFIX = "custom_grasp_cache_v5ccw"
     # CACHE_PREFIX = "custom_grasp_cache_v6flip"
+    # CACHE_PREFIX = "custom_grasp_cache_v7ccw"
+    CACHE_PREFIX = "custom_grasp_cache_v8ccw"
 
     # This path refers to Pinocchio source code but you can define your own directory here.
     pinocchio_model_dir = join(dirname(dirname(dirname(str(abspath(__file__))))), "assets/leap_hand")
@@ -183,6 +185,61 @@ def main_display_recorded_trajectory():
         viz.display(np.concatenate((q_reach[i], [0, 0, 0, 0, 0, 0, 1])))
         time.sleep(0.1)
 
+def main_display_object_pos():
+    # This path refers to Pinocchio source code but you can define your own directory here.
+    pinocchio_model_dir = join(dirname(dirname(dirname(str(abspath(__file__))))), "assets/leap_hand")
+
+    model_path = pinocchio_model_dir
+    mesh_dir = pinocchio_model_dir
+    urdf_model_path = join(model_path, "leaphand_cube.urdf")
+
+    # Load the urdf model
+    model, collision_model, visual_model = pinocchio.buildModelsFromUrdf(urdf_model_path, mesh_dir)
+    print("model name: " + model.name)
+
+    # Create data required by the algorithms
+    data, collision_data, visual_data = pinocchio.createDatas(model, collision_model, visual_model)
+
+    viz = MeshcatVisualizer(model, collision_model, visual_model)
+
+    try:
+        viz.initViewer(open=True)
+    except ImportError as err:
+        print("Error while initializing the viewer. It seems you should install Python meshcat")
+        print(err)
+        sys.exit(0)
+
+    # Load the robot in the viewer.
+    viz.loadViewerModel()
+
+    default_object_pos = [-0.05, 0.04, 0.09]
+
+    while True:
+        x_pos = input("Please input object x (-0.05 by default): ")
+        if x_pos == "":
+            x_pos = default_object_pos[0]
+        else:
+            x_pos = float(x_pos)
+        
+        y_pos = input("Please input object y (0.04 by default): ")
+        if y_pos == "":
+            y_pos = float(default_object_pos[1])
+        else:
+            y_pos = float(y_pos)
+
+        z_pos = input("Please input object z (0.09 by default): ")
+        if z_pos == "":
+            z_pos = float(default_object_pos[2])
+        else:
+            z_pos = float(z_pos)
+
+        object_pos = np.array([x_pos, y_pos, z_pos, 0, 0, 0, 1], dtype=np.float32)
+
+        q_display = np.concatenate((np.zeros(16,), object_pos))
+
+        viz.display(q_display)
+
 
 if __name__ == "__main__":
     main_display_generated_grasp_cache()
+    # main_display_object_pos()

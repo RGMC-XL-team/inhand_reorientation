@@ -24,7 +24,7 @@ env:
 
   disable_actions: True
 
-  randomGraspMethod: "flip_small_noise" # "euler_angle", "euler_angle_for_flip", "original" or "rot_free_yaw"
+  randomGraspMethod: "rot_free_yaw" # "euler_angle", "euler_angle_for_flip", "original", "rot_free_yaw" or "flip_small_noise"
   # fix_reset_quat: False            # fix reset object quaternion as [0, 0, 0, 1]
 
   randomization:
@@ -37,13 +37,13 @@ env:
     randomizePDGains: False
 
   random_xy_bias_limit: 0.01 # default: 0.01
-  finger_dist_threshold: 0.07 # default: 0.06
-  fingertip_dist_min: 0.025 # default: 0.03
-  finger_near_obj_min_num: 4 # default: 3
+  finger_dist_threshold: 0.065 # default: 0.06 | for v6flip 0.07
+  fingertip_dist_min: 0.03 # default: 0.03 | for v6flip 0.025
+  finger_near_obj_min_num: 4 # default: 3 | for v6flip 4
   grasp_dof_search_radius: 0.4 # default: 0.4
-  finger_above_obj_center_z: [-0.015, 0.045] # default: [-0.01, 0.035]
+  finger_above_obj_center_z: [-0.01, 0.035] # default: [-0.01, 0.035] | for v6flip [-0.015, 0.045]
 
-  force_high_finger2: True # default: False
+  force_high_finger2: False # default: False
 
   # canonical_pose: [1.06, -0.58, 1.16, 1.36, 0.48, 1.60, 1.42, 1.31, 0.60, 0.00, 0.74, 1.68, 1.06, 0.58, 1.16, 1.36]     # for small (a=0.05cm)
   # canonical_pose: [0.94, -0.67, 0.56, 1.08, 0.76, 1.79, 1.33, 0.75, 0.20, 0.00, 1.04, 1.10, 1.06, 0.68, 1.17, 0.32]      # for medium (a=0.075cm)
@@ -70,26 +70,28 @@ env:
   ## cube_small_cache3
   # canonical_pose: [0.7501754, -0.46320356, 1.49415578, 0.69188388, -0.30827156, 1.87151516, 1.40058307, 1.63528238, 0.52161209, -0.08891214, 1.08458318, 1.18889363, 0.46638887, 0.00312673, 1.91906871, 0.2178839]
 
-  ## cube_small_cache4 (generates custom_grasp_cache_v2high)
-  canonical_pose:
-    [
-      0.74250548,
-      -1.12588324,
-      1.27479686,
-      0.93732102,
-      0.33139858,
-      1.7610687,
-      1.24565105,
-      1.21650539,
-      0.32986467,
-      0.10283528,
-      1.20423354,
-      1.03856357,
-      0.81613652,
-      1.34689365,
-      0.8636898,
-      1.17355378,
-    ]
+  ## cube_small_cache4
+  # 1. (generates custom_grasp_cache_v2high)
+  # 2. (generates custome_grasp_cache_v6flip WHEN SET force_high_finger2=True)
+  # canonical_pose:
+  #   [
+  #     0.74250548,
+  #     -1.12588324,
+  #     1.27479686,
+  #     0.93732102,
+  #     0.33139858,
+  #     1.7610687,
+  #     1.24565105,
+  #     1.21650539,
+  #     0.32986467,
+  #     0.10283528,
+  #     1.20423354,
+  #     1.03856357,
+  #     0.81613652,
+  #     1.34689365,
+  #     0.8636898,
+  #     1.17355378,
+  #   ]
 
   ## cube_small_cache5 (generates custom_grasp_cache_v3cw)
   # canonical_pose:
@@ -149,3 +151,22 @@ env:
   #   - 0.7969764000000001
   #   - 0.8769544
   #   - 1.2423032000000003
+
+  ## cube_small_cache8 (generates custom_grasp_cache_v7ccw, more randomization expected)
+  canonical_pose:
+    - 0.7689808
+    - -0.8063993999999999
+    - 1.2709911999999999
+    - 0.9355239999999999
+    - 0.7239655999999999
+    - 1.7147500000000002
+    - 0.6432599999999999
+    - 1.5534919999999997
+    - 0.26501440000000004
+    - 0.0
+    - 1.2709911999999999
+    - 1.0657968000000002
+    - 0.8033248
+    - 0.7969764000000001
+    - 0.9319474000000001
+    - 1.2935936

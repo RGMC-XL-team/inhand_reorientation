@@ -965,32 +965,6 @@ class LeapHandFlip(VecTaskRot):
             self.leap_hand_dof_pos, self.leap_hand_dof_lower_limits, self.leap_hand_dof_upper_limits
         ).clone()
 
-        if hasattr(self, "obs_list"):
-            self.obs_list.append(cur_obs_buf[0].clone())
-            self.target_list.append(self.cur_targets[0].clone().squeeze())
-
-            if self.global_counter == self.record_duration - 1:
-                self.obs_list = torch.stack(self.obs_list, dim=0)
-                self.obs_list = self.obs_list.cpu().numpy()
-
-                self.target_list = torch.stack(self.target_list, dim=0)
-                self.target_list = self.target_list.cpu().numpy()
-
-                if "actions_file" in self.cfg["env"]["debug"]:
-                    actions_file = os.path.basename(self.cfg["env"]["debug"]["actions_file"])
-                    folder = os.path.dirname(self.cfg["env"]["debug"]["actions_file"])
-                    suffix = "_".join(actions_file.split("_")[1:])
-                    joints_file = os.path.join(folder, f"joints_sim_{suffix}")
-                    target_file = os.path.join(folder, f"targets_sim_{suffix}")
-                else:
-                    suffix = self.cfg["env"]["debug"]["record"]["suffix"]
-                    joints_file = f"debug/joints_sim_{suffix}.npy"
-                    target_file = f"debug/targets_sim_{suffix}.npy"
-
-                np.save(joints_file, self.obs_list)
-                np.save(target_file, self.target_list)
-                exit()
-
         cur_tar_buf = self.cur_targets[:, None]
 
         if self.cfg["env"]["include_targets"]:
@@ -1032,6 +1006,32 @@ class LeapHandFlip(VecTaskRot):
 
         if "phase_period" in self.cfg["env"]:
             cur_obs_buf = torch.cat([cur_obs_buf, self.phase[:, None]], dim=-1)
+
+        if hasattr(self, "obs_list"):
+            self.obs_list.append(cur_obs_buf[0].clone())
+            self.target_list.append(self.cur_targets[0].clone().squeeze())
+
+            if self.global_counter == self.record_duration - 1:
+                self.obs_list = torch.stack(self.obs_list, dim=0)
+                self.obs_list = self.obs_list.cpu().numpy()
+
+                self.target_list = torch.stack(self.target_list, dim=0)
+                self.target_list = self.target_list.cpu().numpy()
+
+                if "actions_file" in self.cfg["env"]["debug"]:
+                    actions_file = os.path.basename(self.cfg["env"]["debug"]["actions_file"])
+                    folder = os.path.dirname(self.cfg["env"]["debug"]["actions_file"])
+                    suffix = "_".join(actions_file.split("_")[1:])
+                    joints_file = os.path.join(folder, f"joints_sim_{suffix}")
+                    target_file = os.path.join(folder, f"targets_sim_{suffix}")
+                else:
+                    suffix = self.cfg["env"]["debug"]["record"]["suffix"]
+                    joints_file = f"debug/joints_sim_{suffix}.npy"
+                    target_file = f"debug/targets_sim_{suffix}.npy"
+
+                np.save(joints_file, self.obs_list)
+                np.save(target_file, self.target_list)
+                exit()
 
         if self.cfg["env"]["include_history"]:
             at_reset_env_ids = self.at_reset_buf.nonzero(as_tuple=False).squeeze(-1)

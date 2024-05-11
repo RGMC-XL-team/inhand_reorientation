@@ -1,0 +1,339 @@
+task:
+  name: LeapHandRot
+  physics_engine: physx
+  on_evaluation: false
+  randomize: false
+  randomization_params:
+    frequency: 600
+    observations:
+      range:
+      - 0
+      - 0.002
+      range_correlated:
+      - 0
+      - 0.001
+      operation: additive
+      distribution: gaussian
+    actions:
+      range:
+      - 0.0
+      - 0.05
+      range_correlated:
+      - 0
+      - 0.015
+      operation: additive
+      distribution: gaussian
+    sim_params:
+      gravity:
+        range:
+        - 0
+        - 0.4
+        operation: additive
+        distribution: gaussian
+    actor_params:
+      hand:
+        rigid_shape_properties:
+          restitution:
+            num_buckets: 100
+            range:
+            - 0.0
+            - 2
+            operation: scaling
+            distribution: uniform
+      object:
+        rigid_shape_properties:
+          restitution:
+            num_buckets: 100
+            range:
+            - 0.0
+            - 2
+            operation: scaling
+            distribution: uniform
+  env:
+    numEnvs: 1
+    numObservations: 102
+    numActions: 16
+    envSpacing: 0.25
+    phase_period: 2
+    exec_lag: 1
+    include_obj_pose: false
+    goal_conditioned: false
+    episodeLength: 400
+    enableDebugVis: false
+    aggregateMode: 1
+    controller:
+      torque_control: false
+      controlFrequencyInv: 6
+      pgain: 3
+      dgain: 0.1
+      effortLimit: 0.5
+    genGrasps: false
+    clipObservations: 5.0
+    clipActions: 1.0
+    reset_height_threshold: 0.4
+    grasp_cache_name: custom_grasp_cache_v7ccw
+    grasp_cache_len: 1024
+    forceScale: 10.0
+    randomForceProbScalar: 0.25
+    forceDecay: 0.9
+    forceDecayInterval: 0.08
+    rew_scale: 1.0
+    rotate_direction: ccw
+    disabled_fingers: []
+    reward:
+      angvelClipMin: -0.25
+      angvelClipMax: 0.25
+      rotateRewardScale: 0.0
+      objLinvelPenaltyScale: -0.3
+      poseDiffPenaltyScale: -0.2
+      torquePenaltyScale: -0.1
+      workPenaltyScale: -1.0
+      resetWarmStartLength: 30
+      resetWhenTilted: false
+      resetRollPitchThresh: 0.2
+      successTolerancePos: 0.03
+      fallDistance: 0.24
+    additional_rewards:
+      rotate_finite_diff: 1.25
+      object_pos_diff: 0.0
+      object_fallen: -10
+    override_object_init_z: 0.59
+    override_object_init_x: -0.05
+    override_object_init_y: 0.04
+    canonical_pose:
+    - 0.1458
+    - -1.047
+    - 1.7247
+    - -0.2187
+    - 1.2985
+    - 1.6139
+    - 0.9757
+    - 1.0728
+    - -0.1054
+    - 0.029
+    - 1.6039
+    - 0.1227
+    - -0.1084
+    - 0.9652
+    - 1.7317
+    - 0.1071
+    num_contact_fingers: 0
+    baseObjScale: 0.8
+    randomization:
+      randomizeMass: true
+      randomizeMassLower: 0.01
+      randomizeMassUpper: 0.09
+      randomizeCOM: true
+      randomizeCOMLower: -0.01
+      randomizeCOMUpper: 0.01
+      randomizeFriction: true
+      randomizeFrictionLower: 0.1
+      randomizeFrictionUpper: 0.6
+      randomizeSiliconFrictionLower: 0.8
+      randomizeSiliconFrictionUpper: 2.0
+      randomizeScale: true
+      scaleListInit: true
+      randomizeScaleList:
+      - 0.95
+      - 0.9
+      - 1.0
+      - 1.05
+      - 1.1
+      randomizeScaleLower: 0.75
+      randomizeScaleUpper: 0.8
+      randomizePDGains: true
+      randomizePGainLower: 2.9
+      randomizePGainUpper: 3.1
+      randomizeDGainLower: 0.09
+      randomizeDGainUpper: 0.11
+    privInfo:
+      enableObjPos: true
+      enableObjScale: true
+      enableObjMass: true
+      enableObjCOM: true
+      enableObjFriction: true
+    object:
+      type: cube_50mm
+      sampleProb:
+      - 1.0
+    sim_to_real_indices:
+    - 1
+    - 0
+    - 2
+    - 3
+    - 9
+    - 8
+    - 10
+    - 11
+    - 13
+    - 12
+    - 14
+    - 15
+    - 4
+    - 5
+    - 6
+    - 7
+    real_to_sim_indices:
+    - 1
+    - 0
+    - 2
+    - 3
+    - 12
+    - 13
+    - 14
+    - 15
+    - 5
+    - 4
+    - 6
+    - 7
+    - 9
+    - 8
+    - 10
+    - 11
+    asset:
+      handAsset: assets/leap_hand/leaphand_high_palm.urdf
+      ftipRbLinkNames:
+      - fingertip_new_tip
+      - thumb_fingertip_new_tip
+      - fingertip_2_new_tip
+      - fingertip_3_new_tip
+      fingertip_names:
+      - fingertip_new
+      - thumb_fingertip_new
+      - fingertip_2_new
+      - fingertip_3_new
+    enableCameraSensors: false
+  sim:
+    dt: 0.0083333
+    substeps: 1
+    up_axis: z
+    use_gpu_pipeline: true
+    gravity:
+    - 0.0
+    - 0.0
+    - -9.81
+    physx:
+      num_threads: 4
+      solver_type: 1
+      use_gpu: true
+      num_position_iterations: 8
+      num_velocity_iterations: 0
+      max_gpu_contact_pairs: 8388608
+      num_subscenes: 4
+      contact_offset: 0.002
+      rest_offset: 0.0
+      bounce_threshold_velocity: 0.2
+      max_depenetration_velocity: 1000.0
+      default_buffer_size_multiplier: 5.0
+      contact_collection: 2
+train:
+  params:
+    seed: 42
+    algo:
+      name: a2c_continuous
+    model:
+      name: continuous_a2c_logstd
+    network:
+      name: actor_critic
+      separate: false
+      space:
+        continuous:
+          mu_activation: None
+          sigma_activation: None
+          mu_init:
+            name: default
+          sigma_init:
+            name: const_initializer
+            val: 0
+          fixed_sigma: true
+      mlp:
+        units:
+        - 512
+        - 256
+        - 128
+        activation: elu
+        d2rl: false
+        initializer:
+          name: default
+        regularizer:
+          name: None
+      rnn:
+        name: gru
+        units: 256
+        layers: 1
+        before_mlp: true
+        concat_input: true
+        layer_norm: true
+    load_checkpoint: true
+    load_path: /home/yongpeng/competition/leap_ws/src/leap_XL/leap_sim/leapsim/runs/sandy-sun-173/nn/LeapHand.pth
+    config:
+      name: LeapHand
+      full_experiment_name: LeapHand
+      env_name: rlgpu
+      multi_gpu: false
+      ppo: true
+      device: cuda:0
+      mixed_precision: false
+      normalize_input: true
+      normalize_value: true
+      value_bootstrap: true
+      num_actors: 1
+      reward_shaper:
+        scale_value: 0.01
+      normalize_advantage: true
+      gamma: 0.99
+      tau: 0.95
+      learning_rate: 0.005
+      lr_schedule: adaptive
+      schedule_type: standard
+      kl_threshold: 0.02
+      score_to_win: 100000
+      max_epochs: 5000
+      save_best_after: 100
+      save_frequency: 200
+      print_stats: true
+      grad_norm: 1.0
+      entropy_coef: 0.0
+      truncate_grads: true
+      e_clip: 0.2
+      horizon_length: 32
+      minibatch_size: 16
+      mini_epochs: 5
+      critic_coef: 4
+      clip_value: true
+      seq_len: 4
+      bounds_loss_coef: 0.0001
+      player:
+        deterministic: true
+        games_num: 100000
+        print_stats: true
+task_name: LeapHandRot
+experiment: ''
+num_envs: 1
+seed: 42
+torch_deterministic: false
+max_iterations: ''
+physics_engine: physx
+pipeline: gpu
+sim_device: cuda:0
+rl_device: cuda:0
+graphics_device_id: 0
+num_threads: 4
+solver_type: 1
+num_subscenes: 4
+test: true
+checkpoint: /home/yongpeng/competition/leap_ws/src/leap_XL/leap_sim/leapsim/runs/sandy-sun-173/nn/LeapHand.pth
+multi_gpu: false
+default_run_name: LeapHand
+log_to_sheet: true
+sheet_name: leap-hand-manip
+creds_path: ~/creds.json
+wandb_activate: false
+wandb_group: ''
+wandb_entity: jyp23
+wandb_project: leap_rl
+capture_video: false
+capture_video_freq: 183
+capture_video_len: 100
+force_render: true
+headless: false

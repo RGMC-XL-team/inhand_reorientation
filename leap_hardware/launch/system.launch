@@ -6,6 +6,7 @@
 
     <!-- By default, we launch Leap Hand -->
     <arg name="start_hand" default="true" />
+    <arg name="free_move" default="false" />
 
     <!-- By default, we launch single camera D405 -->
     <arg name="use_single_camera" default="true" />
@@ -13,7 +14,7 @@
     <!-- Leap Hand -->
     <group if="$(arg start_hand)">
         <include file="$(find leap_hardware)/launch/leap_bringup.launch">
-            <arg name="free_move" value="false" />
+            <arg name="free_move" value="$(arg free_move)" />
             <arg name="enable_visualization" value="true" />
             <arg name="use_rviz" value="true" />
             <arg name="publish_joint_state" value="false" />

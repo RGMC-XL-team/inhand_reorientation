@@ -93,7 +93,7 @@ env:
   # debug and save
   debug:
     record:
-      duration: 20.0
+      duration: 60.0
       suffix: "rotz_goal"
   enableDebugVis: False
 
@@ -221,6 +221,8 @@ env:
     successTolerance: 0.4
     successTolerancePos: 0.03 # default: 0.04
     maxConsecutiveSuccesses: 20
+    # reset policy
+    reset_if_goal_reach: True
 
   override_dist:
     # cube:

@@ -45,6 +45,11 @@ class TaskBInfo(object):
         self.time_budget = 10000.0                  # the time budget for the task (default: 30)
         self.time_spent = 0.0                       # the time spent on the current substep (face)
         self.time_current_start = 0.0               # the time when the current substep (face) starts
+        self.time_current_wait_start = 0.0          # the time when the current waiting starts
+        self.time_current_rot_start = 0.0           # the time when the current rotation starts
+        self.time_current_flip_start = 0.0          # the time when the current flipping starts
+
+        self.consecutive_reset_times = 0            # the number of consecutive object resets
 
         self.object_center_pos = np.array([-0.0592509, 0.03504605, 0.08918902])
 

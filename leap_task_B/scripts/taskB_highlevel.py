@@ -13,7 +13,7 @@ import time
 import rospy
 import rospkg
 import actionlib
-from std_msgs.msg import String
+from std_msgs.msg import String, Bool
 from std_srvs.srv import Trigger
 
 from leap_task_B.taskB_utils import TaskBInfo, TaskBState, TaskBOfflineMode, DESIRED_YAW_DICT
@@ -44,7 +44,7 @@ class TaskBHighLevel(object):
         self.info.current_face = "A"
 
         self.online_mode = rospy.get_param("online_mode", False)
-        self.forced_reset = self.config["control_options"]["forced_reset"]
+        self.forced_reset = self.config["reset_options"]["forced_reset"]
 
     def _initialize_service_and_actions(self):
         self.action_name = rospy.get_param("action_name", "run_policy")
@@ -75,19 +75,77 @@ class TaskBHighLevel(object):
         """Check if anomaly occurs in the manipulation"""
         anomaly_detected = False
 
+        # for waiting, check if timeout
+        if self.info.current_state == TaskBState.WAIT:
+            if rospy.get_time() - self.info.time_current_wait_start > self.anomaly_config["max_wait_time"]:
+                rospy.logerr("Anomaly: timeout for waiting!")
+                anomaly_detected = True
+
         # for rotation, check if the object is tilt too much
         if self.info.current_state in [TaskBState.ROTATE_CW, TaskBState.ROTATE_CCW]:
             current_z_axis = self.info.object_local_pose.z_axis()
+            try:
+                control_fail = bool(rospy.wait_for_message("/hand_control_fail", Bool, timeout=0.2).data)
+            except rospy.ROSException:
+                control_fail = False
+            # anomaly cond1: object's face is not roughly upwards
             if compute_angle_between_two_axis(current_z_axis, [0., 0., 1.]) > self.anomaly_config["rot_tilt_angle_thresh"]:
+                rospy.logerr("Anomaly: the object tilts too much for rotation!")
+                anomaly_detected = True
+            # anomaly cond2: rotation timeout
+            # elif rospy.get_time() - self.info.time_current_rot_start > self.anomaly_config["max_rot_time"]:
+            #     rospy.logerr("Anomaly: timeout for rotation!")
+            #     anomaly_detected = True
+            # anomaly cond3: hand control failure
+            elif control_fail:
+                rospy.logerr("Anomaly: hand control failure!")
+                anomaly_detected = True
+
+        # TODO(yongpeng): debug this flipping anomaly detection
+        # for flipping, check if the object is far from center
+        if self.info.current_state in [TaskBState.FLIP_IN, TaskBState.FLIP_OUT]:
+            current_z_axis = self.info.object_local_pose.z_axis()
+            current_xy = self.info.object_local_pose.xy()
+            current_yaw = self.info.object_local_pose.yaw()
+            try:
+                control_fail = bool(rospy.wait_for_message("/hand_control_fail", Bool, timeout=0.2).data)
+            except rospy.ROSException:
+                control_fail = False
+            # anomaly cond1: object's center is too far from the palm center
+            if current_xy[0] <= self.anomaly_config["flip_x_lower_bound"] and \
+                current_xy[1] >= self.anomaly_config["flip_y_upper_bound"]:
+                rospy.logerr("Anomaly: the object moves out of palm center!")
+                anomaly_detected = True
+            # # anomaly cond2: object's face (roughly) points upwards, but rotates around z too much
+            # elif compute_angle_between_two_axis(current_z_axis, [0., 0., 1.]) < np.deg2rad(10*1.5) and \
+            #     compute_angle_distance(current_yaw, self.info.desired_yaw) > np.deg2rad(15*1.5):
+            #     anomaly_detected = True
+            # anomaly cond3: flipping timeout
+            elif rospy.get_time() - self.info.time_current_flip_start > self.anomaly_config["max_flip_time"]:
+                rospy.logerr("Anomaly: timeout for flipping!")
+                anomaly_detected = True
+            # anomaly cond4: hand control failure
+            elif control_fail:
+                rospy.logerr("Anomaly: hand control failure!")
                 anomaly_detected = True
 
         # execute reset hand if anomaly detected
         if anomaly_detected:
-            rospy.logerr("Anomaly detected, will reset hand!")
+            rospy.logerr("Will reset hand!")
             self._action_client.cancel_goal()
             self.call_reset_hand()
-            if self.info.current_state in [TaskBState.ROTATE_CW, TaskBState.ROTATE_CCW]:
+            avoid_too_much_reset = False
+            if self.info.current_state == TaskBState.WAIT:
                 self.info.current_state = TaskBState.BEFORE_ROTATE
+            elif self.info.current_state in [TaskBState.ROTATE_CW, TaskBState.ROTATE_CCW]:
+                self.info.current_state = TaskBState.BEFORE_ROTATE
+                avoid_too_much_reset = True
+            elif self.info.current_state in [TaskBState.FLIP_IN, TaskBState.FLIP_OUT]:
+                self.info.current_state = TaskBState.BEFORE_FLIP
+                avoid_too_much_reset = True
+            """Allow only one more reset motion, otherwise, run out of time"""
+            if avoid_too_much_reset:
+                self.info.consecutive_reset_times = self.config["reset_options"]["max_reset_times"] - 1
 
 
     def _check_timeout(self):
@@ -152,8 +210,10 @@ class TaskBHighLevel(object):
         """Check if the object is centered for flipping"""
         if self._check_current_visible() == False:
             return False
-        if np.linalg.norm(self.info.object_local_pose.xy() - self.object_center_pos[0:2]) < \
-            self.info.tolerance_xy:
+        object_at_palm_center = np.linalg.norm(self.info.object_local_pose.xy() - self.object_center_pos[0:2]) < \
+                                self.info.tolerance_xy
+        object_no_rot = compute_angle_distance(self.info.object_local_pose.yaw(), self.info.desired_yaw) < self.info.tolerance_yaw/2
+        if object_at_palm_center and object_no_rot:
             rospy.loginfo(f"Object is centered for flipping!")
             return True
         else:
@@ -186,7 +246,10 @@ class TaskBHighLevel(object):
         if clockwise_angle < anticlockwise_angle:
             return True
         else:
-            return False
+            if anticlockwise_angle > np.deg2rad(100):
+                return True
+            else:
+                return False
         
     def call_reset_hand(self):
         """Reset the hand to home position"""
@@ -201,6 +264,13 @@ class TaskBHighLevel(object):
         goal = RunPolicyGoal(policy_name=f"RESET_OBJECT_{current_policy}")
         self._action_client.send_goal(goal)
         self._action_client.wait_for_result()
+        self.info.consecutive_reset_times += 1
+
+    def clear_reset_object_status(self):
+        self.info.consecutive_reset_times = 0.0
+
+    def _check_max_reset_object_times_reached(self):
+        return self.info.consecutive_reset_times >= self.config["reset_options"]["max_reset_times"]
 
     def execute_current_face(self):
         self.info.current_state = TaskBState.WAIT
@@ -208,6 +278,7 @@ class TaskBHighLevel(object):
 
         # reset hand
         self.call_reset_hand()
+        self.info.time_current_wait_start = rospy.get_time()
         rospy.loginfo("Hand reset done!")
         
         while not self._check_timeout():
@@ -219,7 +290,7 @@ class TaskBHighLevel(object):
                 break
             
             if self.info.current_state == TaskBState.WAIT:
-                if self._check_current_visible()  and \
+                if self._check_current_visible() and \
                     self._check_face_upwards(face=self.info.current_face):
                     self.info.current_state = TaskBState.BEFORE_ROTATE
             
@@ -227,11 +298,13 @@ class TaskBHighLevel(object):
                 if self._check_rotate_terminate_condition():
                     """Just skip rotating the object"""
                     self.info.current_state = TaskBState.BEFORE_FLIP
-                elif self._check_rotate_start_condition():
+                elif self._check_rotate_start_condition() or self._check_max_reset_object_times_reached():
                     """Forced reset"""
-                    if self.forced_reset:
+                    if self.forced_reset and not self._check_max_reset_object_times_reached():
                         self.call_reset_object(current_policy="ROT")
+                    self.clear_reset_object_status()
                     """Configure the rotation policy here"""
+                    self.info.time_current_rot_start = rospy.get_time()
                     if self._check_should_rotate_cw():
                         self.info.running_policy = "ROT_CW"
                         goal = RunPolicyGoal(policy_name="ROT_CW")
@@ -256,11 +329,13 @@ class TaskBHighLevel(object):
                     self.info.current_state = TaskBState.BEFORE_FLIP
 
             elif self.info.current_state == TaskBState.BEFORE_FLIP:
-                if self._check_flip_start_condition():
+                if self._check_flip_start_condition() or self._check_max_reset_object_times_reached():
                     """Forced reset"""
-                    if self.forced_reset:
+                    if self.forced_reset and not self._check_max_reset_object_times_reached():
                         self.call_reset_object(current_policy="FLIP")
-                    """Configure the rotation policy here"""
+                    self.clear_reset_object_status()
+                    """Configure the flipping policy here"""
+                    self.info.time_current_flip_start = rospy.get_time()
                     self.info.running_policy = "FLIP_OUT"
                     goal = RunPolicyGoal(policy_name="FLIP_OUT")
                     _debug_flip_start_time = time.time()

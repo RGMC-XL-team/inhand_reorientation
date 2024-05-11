@@ -21,6 +21,7 @@ import rospkg
 import hydra
 import matplotlib.pyplot as plt
 import numpy as np
+import pickle
 import isaacgym
 from isaacgym.torch_utils import quat_from_euler_xyz
 import torch
@@ -259,6 +260,8 @@ class HardwarePlayer:
 
         print("done, policy deployment will start")
         pdb.set_trace()
+        print("You have 5 seconds to setup everything")
+        rospy.sleep(5)
 
         obses, _ = leap.poll_joint_position()
 
@@ -312,6 +315,7 @@ class HardwarePlayer:
         if "debug" in self.config["task"]["env"]:
             self.obs_list = []
             self.target_list = []
+            self.ros_time_list = []
 
             if "record" in self.config["task"]["env"]["debug"]:
                 self.record_duration = int(self.config["task"]["env"]["debug"]["record"]["duration"] / self.control_dt)
@@ -331,12 +335,12 @@ class HardwarePlayer:
         while True:
             counter += 1
             # obs = self.running_mean_std(obs_buf.clone()) # ! Need to check if this is implemented
-            if counter >= 1000:
-                q_command = np.array(q_command)
-                q_reach = np.array(q_reach)
-                np.save("debug/q_command.npy", q_command)
-                np.save("debug/q_reach.npy", q_reach)
-                break
+            # if counter >= 1000:
+            #     q_command = np.array(q_command)
+            #     q_reach = np.array(q_reach)
+            #     np.save("debug/q_command.npy", q_command)
+            #     np.save("debug/q_reach.npy", q_reach)
+            #     break
 
             if hasattr(self, "actions_list"):
                 action = self.actions_list[counter - 1][None, :]
@@ -375,32 +379,6 @@ class HardwarePlayer:
             if self.debug_viz:
                 self.plot_callback()
 
-            if hasattr(self, "obs_list"):
-                self.obs_list.append(cur_obs_buf[0].clone())
-                self.target_list.append(target[0].clone().squeeze())
-
-                if counter == self.record_duration - 1:
-                    self.obs_list = torch.stack(self.obs_list, dim=0)
-                    self.obs_list = self.obs_list.cpu().numpy()
-
-                    self.target_list = torch.stack(self.target_list, dim=0)
-                    self.target_list = self.target_list.cpu().numpy()
-
-                    if "actions_file" in self.config["task"]["env"]["debug"]:
-                        actions_file = os.path.basename(self.config["task"]["env"]["debug"]["actions_file"])
-                        folder = os.path.dirname(self.config["task"]["env"]["debug"]["actions_file"])
-                        suffix = "_".join(actions_file.split("_")[1:])
-                        joints_file = os.path.join(folder, f"joints_real_{suffix}")
-                        target_file = os.path.join(folder, f"targets_real_{suffix}")
-                    else:
-                        suffix = self.config["task"]["env"]["debug"]["record"]["suffix"]
-                        joints_file = f"debug/joints_real_{suffix}.npy"
-                        target_file = f"debug/targets_real_{suffix}.npy"
-
-                    np.save(joints_file, self.obs_list)
-                    np.save(target_file, self.target_list)
-                    exit()
-
             if self.config["task"]["env"]["include_history"]:
                 obs_buf = obs_buf[:, num_obs_single:].clone()
             else:
@@ -434,6 +412,47 @@ class HardwarePlayer:
                 phase[:, 0] = math.sin(phase_angle)
                 phase[:, 1] = math.cos(phase_angle)
                 obs_buf = torch.cat([obs_buf, phase.clone()], dim=-1)
+
+            if hasattr(self, "obs_list"):
+                self.obs_list.append(obs_buf[0].clone())
+                self.target_list.append(target[0].clone().squeeze())
+                self.ros_time_list.append(rospy.Time.now().to_sec())
+
+                if counter == self.record_duration - 1:
+                    self.obs_list = torch.stack(self.obs_list, dim=0)
+                    self.obs_list = self.obs_list.cpu().numpy()
+                    self.ros_time_list = np.array(self.ros_time_list)
+
+                    self.target_list = torch.stack(self.target_list, dim=0)
+                    self.target_list = self.target_list.cpu().numpy()
+
+                    if "actions_file" in self.config["task"]["env"]["debug"]:
+                        actions_file = os.path.basename(self.config["task"]["env"]["debug"]["actions_file"])
+                        folder = os.path.dirname(self.config["task"]["env"]["debug"]["actions_file"])
+                        suffix = "_".join(actions_file.split("_")[1:])
+                        joints_file = os.path.join(folder, f"joints_real_{suffix}")
+                        target_file = os.path.join(folder, f"targets_real_{suffix}")
+                    else:
+                        suffix = self.config["task"]["env"]["debug"]["record"]["suffix"]
+                        joints_file = f"debug/joints_real_{suffix}.npy"
+                        target_file = f"debug/targets_real_{suffix}.npy"
+
+                    # np.save(joints_file, self.obs_list)
+                    # np.save(target_file, self.target_list)
+
+                    idx = len([f for f in os.listdir("./debug/fsd") if f.endswith("pkl")])
+                    data_file = f"debug/fsd/real_data_{suffix}_{idx}.pkl"
+                    with open(data_file, "wb") as f:
+                        pickle.dump(
+                            {
+                                "joints": self.obs_list,
+                                "targets": self.target_list,
+                                "ros_time": self.ros_time_list
+                            },
+                            f
+                        )
+
+                    exit()
 
             if "obs_mask" in self.config["task"]["env"]:
                 obs_buf = obs_buf * torch.tensor(self.config["task"]["env"]["obs_mask"]).cuda()[None, :]

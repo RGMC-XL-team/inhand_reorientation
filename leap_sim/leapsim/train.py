@@ -131,6 +131,9 @@ def launch_rlg_hydra(cfg: DictConfig):
 
     rlg_config_dict = omegaconf_to_dict(cfg.train)
 
+    if cfg.test and "goalReward" in cfg.task.env:
+        cfg.task.env.goalReward.reset_if_goal_reach = False
+
     # convert CLI arguments into dictionory
     # create runner and set the settings
     runner = build_runner(RLGPUAlgoObserver())

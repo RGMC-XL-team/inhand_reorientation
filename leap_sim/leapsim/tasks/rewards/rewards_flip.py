@@ -51,7 +51,8 @@ def compute_reward(
     clip_torque_reward: bool,
     torque_scale: float,
     torque_upper_bound: float,
-    ftip_cf, ftip_cf_scale, ftip_cf_reward_scale: float
+    ftip_cf, ftip_cf_scale, ftip_cf_reward_scale: float,
+    reset_if_goal_reach: bool
 ):
     num_envs = object_pos.shape[0]
     rew_device = object_pos.device
@@ -174,7 +175,10 @@ def compute_reward(
     time_due_envs = progress_buf >= max_episode_length - 1
     # resets: 1) reset_buf, 2) time due, 3) fall, 4) goal reach
     resets = torch.where(time_due_envs, torch.ones_like(resets), resets)
-    resets = torch.where(goal_reach, torch.ones_like(resets), resets)
+    
+    if reset_if_goal_reach:
+        resets = torch.where(goal_reach, torch.ones_like(resets), resets)
+    
     # dones: 1) goal reach, 2) fall (include move far from palm center), 3) time due
     dones = torch.logical_or(dones, time_due_envs)
     return (
@@ -281,7 +285,8 @@ def compute_leaphand_reward(
         torque_upper_bound=reward_cfg["torque_upper_bound"],
         ftip_cf=ftip_cf,
         ftip_cf_scale=reward_cfg["ftip_cf_scale"],
-        ftip_cf_reward_scale=reward_cfg["ftip_cf_reward_scale"]
+        ftip_cf_reward_scale=reward_cfg["ftip_cf_reward_scale"],
+        reset_if_goal_reach=reward_cfg["reset_if_goal_reach"]
     )
     out = compute_reward(**kwargs)
     return out

@@ -1,6 +1,6 @@
 tolerance:
-  xy: 0.02 # the tolerance for xy in meter (default: 0.02)
-  yaw: 0.25 # the tolerance for yaw in rad  (default: 0.25)
+  xy: 0.005 # the tolerance for xy in meter (default: 0.02)
+  yaw: 0.2 # the tolerance for yaw in rad  (default: 0.25[rad] or 15[deg])
 
 time_budget: 10000.0 # the time budget for the task (default: 30.0)
 face_sequence_length: 10 # the face sequence length for the task (default: 10)
@@ -13,12 +13,18 @@ control:
   flip_fingertip_radius: 0.015 # enable loose grasp for flipping
   rot_fingertip_radius: 0.01 # enable hard grasp for rotating
 
-control_options:
+reset_options:
   forced_reset: False # forced reset before rot and flip (default: False)
+  max_reset_times: 2 # max reset times before rot and flip (default: 3)
 
 anomaly_detection:
   period: 0.2 # the period for anomaly detection (default: 0.2)
   rot_tilt_angle_thresh: 0.5 # the tilt angle threshold for rot anomaly detection (default: 0.5)
+  flip_x_lower_bound: -0.05 # the minimum object center x for flipping
+  flip_y_upper_bound: 0.05 # the maximum object center y for flipping
+  max_rot_time: 8.0 # the maximum time for rotating (default: 8.0)
+  max_flip_time: 10.0 # the maximum time for flipping (default: 10.0)
+  max_wait_time: 2.0 # the maximum time for waiting (default: 2.0)
 
 # object_center_pos: [-0.0592509, 0.02004605, 0.08418902] # the object center position in the world frame (default: [-0.0592509, 0.03504605, 0.08918902])
 object_center_pos: [-0.055, 0.02504605, 0.08418902]
@@ -74,7 +80,8 @@ reset_via_hand_pos:
   # thumb & finger3 reach out behind the cube
   finger_reach_out_pos: [
     -0.34508689, 0.15959273, -0.41258202, 0.15499075,
-    0.240893692, 2.00343740, 1.68130140, 0.981806145,
+    # 0.240893692, 2.00343740, 1.68130140, 0.981806145,
+    0.240893692, 2.13, 1.68130140, 0.88,
     -0.34508689, 0.1733986, -0.42025195, 0.18106826,
     1.35149567, 1.31774794, 0.796194688, 1.02322371
   ]

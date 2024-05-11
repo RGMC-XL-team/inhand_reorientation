@@ -18,6 +18,7 @@ import rospy
 import rospkg
 import actionlib
 from typing import Dict
+from std_msgs.msg import Bool
 
 import numpy as np
 from isaacgym.torch_utils import quat_from_euler_xyz
@@ -229,6 +230,9 @@ class MultiHardwarePlayer(object):
         # keep the disabled fingers at init_pose (finger1, finger2, finger3, thumb)
         self.disabled_fingers = []
 
+        ## Initialize anomaly publisher
+        self.control_fail_pub = rospy.Publisher("/hand_control_fail", Bool, queue_size=1)
+
         rospy.loginfo(f"Load config from {_taskB_config_path}!")
 
     def initialize_hardware(self):
@@ -383,6 +387,22 @@ class MultiHardwarePlayer(object):
     def set_run_rl_policy(self):
         self.grasp_commander.set_cube_length(self.rl_cube_length)
 
+    def check_hand_control_failed(self):
+        """Check hand control failed if finger faraway from object or too low"""
+        ftip_states, ftip_links = self.leap_hw.poll_fingertip_state()
+        object_state = self.object_state_proxy().pose
+        assert len(ftip_states) == 4
+        control_fail = False
+        for i in range(4):
+            if np.linalg.norm(ftip_states[i][0:3] - object_state[0:3]) > 0.1:
+                control_fail=True
+            elif ftip_states[i][2] < 0.06:
+                control_fail=True
+            if control_fail:
+                self.control_fail_pub.publish(True)
+                return
+        self.control_fail_pub.publish(False)
+
     def reset_hand(self, enable_preempt=True):
         """move hand to pre-grasp position"""
         self.disabled_fingers.clear()
@@ -404,13 +424,19 @@ class MultiHardwarePlayer(object):
         self.reset_hand()
 
         curr_object_state = np.array(self.object_state_proxy().pose)
+
+        # TODO(yongpeng): debug this aggressive reset condition
+        if curr_object_state[0] <= -0.07 or \
+            (curr_object_state[0] < -0.05 and curr_object_state[1] > 0.05):
+            self.reset_object_aggressive()
+            curr_object_state = np.array(self.object_state_proxy().pose)
         
         # disable fingers based on object position
-        if curr_object_state[0] < -0.07 and curr_object_state[1] > 0.05:
+        if curr_object_state[0] < -0.065 and curr_object_state[1] > 0.05:
             self.disabled_fingers = ["finger1", "finger2"]
-        elif curr_object_state[0] > -0.045 and curr_object_state[1] > 0.045:
+        elif curr_object_state[0] > -0.035 and curr_object_state[1] > 0.04:
             self.disabled_fingers = ["thumb", "finger2"]
-        elif curr_object_state[0] > -0.045 and curr_object_state[1] <= 0.045:
+        elif curr_object_state[0] < -0.035 and curr_object_state[1] > 0.04:
             self.disabled_fingers = ["thumb"]
         else:
             self.disabled_fingers = ["thumb"]
@@ -539,6 +565,8 @@ class MultiHardwarePlayer(object):
                 rospy.loginfo("Current goal is preempted")
                 self._action_server.set_preempted()
                 break
+            # check hand control failure
+            self.check_hand_control_failed()
 
             action = self.forward_network(obs_buf)
             action = torch.clamp(action, -1.0, 1.0)
@@ -667,8 +695,11 @@ class MultiHardwarePlayer(object):
         # pdb.set_trace()
 
         while not rospy.is_shutdown():
-            pdb.set_trace()
-            self.reset_object()
+            # pdb.set_trace()
+            # self.reset_object()
+            self.leap_hw.poll_joint_position()
+            self.check_hand_control_failed()
+            self.control_rate.sleep()
 
     # ----------------------------------------
     

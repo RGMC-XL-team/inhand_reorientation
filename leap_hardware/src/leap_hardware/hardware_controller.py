@@ -199,10 +199,15 @@ class LeapHand:
 
         return joint_positions, joint_velocities
 
-    def poll_fingertip_state(self, ordered_link_names=None):
+    def poll_fingertip_state(self, ordered_link_names=None, include_vel=False):
         # convert to pinocchio joint order
         pin_q = self.current_joint_positions[[0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15, 4, 5, 6, 7]]
-        pin_v = self.current_joint_velocities[[0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15, 4, 5, 6, 7]]
+        
+        if include_vel:
+            pin_v = self.current_joint_velocities[[0, 1, 2, 3, 8, 9, 10, 11, 12, 13, 14, 15, 4, 5, 6, 7]]
+        else:
+            pin_v = np.zeros_like(pin_q)
+        
         self.leap_kin.updateFKvel(part_name="hand", part_joint_pos=pin_q, part_joint_vel=pin_v)
 
         fingertip_states = np.zeros((4, 13))
