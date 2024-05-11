@@ -79,8 +79,6 @@ class LeapHandControl:
         # options
         self.back_to_initial_config = True
         self.second_finger_id = "finger2"  # "finger1" or "finger2"
-        self.max_control_iter = 5  # 100
-        self.max_control_time = 18
 
         self.env: LeapHandReal | Simulation
         if use_real_hardware:
@@ -295,7 +293,6 @@ class LeapHandControl:
     """
 
     def moveObject(self, target_object_pos=None, target_object_quat=None, target_rel_movement=None):
-        t1 = time.perf_counter()
         if target_rel_movement is not None:
             object_pos, object_quat = self.env.getQRCodePose()
             target_object_pos = object_pos + target_rel_movement
@@ -313,7 +310,8 @@ class LeapHandControl:
         last_err = 1e10
         all_traj_hand_joint_pos = []
         # repeat the trajectory optimization, like an MPC
-        for control_iter in range(self.max_control_iter):
+        # for control_iter in range(5):
+        while True:
             self.updateCurrentHandJointPos()
 
             object_pos, object_quat = self.env.getQRCodePose()
@@ -337,7 +335,7 @@ class LeapHandControl:
 
             print("Start trajectory optimization ...")
             traj_hand_joint_pos, planned_object_err = self.robot_model.relaxedTrajectoryOptimization2(
-                T=3 if control_iter == 0 else 1,
+                T=5 if control_iter == 0 else 1,
                 delta_t=0.5 if control_iter == 0 else 0.2,
                 object_target_pose=posQuat2Isometry3d(target_object_pos, target_object_quat),
                 thumb_target_rel_pose=thumb_pose_in_object,
@@ -364,13 +362,8 @@ class LeapHandControl:
             print("planned_err: ", planned_object_err)
             print("actual_err: ", control_err)
             if control_err < planned_object_err:  # the criterion for switching to the next waypoint
-                print("Stop: control_err < planned_object_err")
                 break
-            # if control_err >= last_err:
-            #     print("Stop: control_err >= last_err")
-            #     break
-            if time.time() - self.last_start_time > self.max_control_time:
-                print("Stop: timeout")
+            if control_err >= last_err:
                 break
             last_err = control_err
 
@@ -379,7 +372,6 @@ class LeapHandControl:
 
         if self.use_real_hardware and self.use_evaluator:
             self.rgmc_record_service()
-            self.last_start_time = time.time()
 
         # back to the intial configuration (currently, sliding easily happens in simulation and leads to failure)
         if self.back_to_initial_config:
@@ -552,13 +544,13 @@ def real_test():
     print("Please press 'Enter' to continue ...")
     input()
 
-    ctrl.last_start_time = time.time()
+    ctrl.last_start_time = time.perf_counter()
     object_pos, object_quat = ctrl.env.getQRCodePose()
 
     for i in range(10):
         for waypoint_idx, target_waypoint in enumerate(target_waypoints):
-            # if waypoint_idx != 2:
-            #     continue
+            if waypoint_idx != 2:
+                continue
 
             target_pos = np.array([target_waypoint["x"], target_waypoint["y"], target_waypoint["z"]])
             target_object_pos = object_pos + target_pos
@@ -591,7 +583,7 @@ def real_test_with_evaluator():
     input()
 
     ctrl.rgmc_start_service()  # call the evaluator to start
-    ctrl.last_start_time = time.time()
+    ctrl.last_start_time = time.perf_counter()
     object_pos, object_quat = ctrl.env.getQRCodePose()
 
     while ctrl.task_goal is None:
@@ -690,8 +682,8 @@ def searchBestObjectPosition():
 # ----------------------------------------------
 if __name__ == "__main__":
     # test1()  # simulation
-    # real_test()  # real-world
-    real_test_with_evaluator()
+    real_test()  # real-world
+    # real_test_with_evaluator()
     # real_test_new_object()
 
     # searchBestObjectPosition()

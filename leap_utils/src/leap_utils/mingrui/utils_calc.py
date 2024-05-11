@@ -280,6 +280,23 @@ def wrenchTransformationMatrix(a):
     return np.squeeze(M)
 
 
+# # ---------------------------------------
+# def jacoDeRotVecToAngularVel(rotvec):
+#     r = np.asarray(rotvec).reshape(-1, 3, 1)
+#     r_T = np.transpose(r, [0, 2, 1])
+
+#     n = r.shape[0]
+#     R = sciR.from_rotvec(r.reshape(-1, 3)).as_matrix()
+#     R_T = np.transpose(R, (0, 2, 1))
+#     I3 = np.tile(np.eye(3), (n, 1, 1))
+
+#     body_jaco = (np.matmul(r, r_T) + np.matmul((R_T - I3), skew(r))) / np.linalg.norm(r, axis=1, keepdims=True) ** 2
+
+#     space_jaco = np.matmul(R, body_jaco)
+
+#     return np.squeeze(space_jaco)
+
+
 # ---------------------------------------
 def jacoDeRotVecToAngularVel(rotvec):
     r = np.asarray(rotvec).reshape(-1, 3, 1)
@@ -291,6 +308,11 @@ def jacoDeRotVecToAngularVel(rotvec):
     I3 = np.tile(np.eye(3), (n, 1, 1))
 
     body_jaco = (np.matmul(r, r_T) + np.matmul((R_T - I3), skew(r))) / np.linalg.norm(r, axis=1, keepdims=True) ** 2
+
+    # avoid dividing by zero
+    zero_index = np.where(np.linalg.norm(r.reshape(-1, 3), axis=1) < 1e-8)
+    body_jaco[zero_index, :, :] = np.tile(np.eye(3), (len(zero_index), 1, 1))
+
     space_jaco = np.matmul(R, body_jaco)
 
     return np.squeeze(space_jaco)

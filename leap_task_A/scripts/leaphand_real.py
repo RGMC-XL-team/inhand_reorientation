@@ -39,10 +39,12 @@ class LeapHandReal:
     def getHandJointPos(self):
         positions = np.array(self.leap_position().position)
         positions -= np.pi
-        self.publishHandJointStates(positions)
+        # self.publishHandJointStates(positions)
         return positions
 
     def ctrlHandJointPos(self, target_joint_pos):
+        self.publishHandJointStates(target_joint_pos.tolist())  # for rviz visualization
+
         target_joint_pos = target_joint_pos.copy() + np.pi
         target_state = JointState()
         target_state.position = target_joint_pos.tolist()

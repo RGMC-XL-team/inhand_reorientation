@@ -32,6 +32,8 @@
   <!-- Tag TF to a pose topic -->
 
   <node pkg="leap_task_A" name="tag_tf_to_topic" type="tag_tf_to_topic.py" output="screen" />
+  <node pkg="leap_task_A" name="task_goal_transform" type="task_goal_transform.py"
+    output="screen" />
 
   <!-- Leap Hand -->
 
