@@ -1,8 +1,8 @@
 rot:
   cw: chocolate-lake-144
   # ccw: stilted-rain-84
-  ccw: misunderstood-monkey-130
-  # ccw: feasible-valley-160
+  # ccw: misunderstood-monkey-130
+  ccw: feasible-valley-160
   # ccw: sandy-sun-173
 flip:
   in: None

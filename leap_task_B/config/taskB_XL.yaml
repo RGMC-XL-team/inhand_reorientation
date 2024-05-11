@@ -12,10 +12,13 @@ control:
   model_based_cube_length: 0.025 # the imagined cube length for model-based policy
   flip_fingertip_radius: 0.015 # enable loose grasp for flipping
   rot_fingertip_radius: 0.01 # enable hard grasp for rotating
+  enable_stop_after_every_flip: False # enable stop after every flip
+  control_stop_duration: 1.0 # the duration for stopping after every flip
+  flip_stop_detect_threshold: 0.01 # the threshold for detecting stop after flip
 
 reset_options:
   forced_reset: False # forced reset before rot and flip (default: False)
-  max_reset_times: 2 # max reset times before rot and flip (default: 3)
+  max_reset_times: 1 # max reset times before rot and flip (default: 2)
 
 anomaly_detection:
   period: 0.2 # the period for anomaly detection (default: 0.2)
@@ -30,7 +33,8 @@ anomaly_detection:
 object_center_pos: [-0.055, 0.02504605, 0.08418902]
 
 reset_object_pos:
-  rot: [-0.055, 0.02504605, 0.08418902]
+  # rot: [-0.055, 0.02504605, 0.08418902] # this will make ROT_CCW unrobust
+  rot: [-0.055, 0.045, 0.08418902] # this will make ROT_CCW unrobust
   flip: [-0.05, 0.02504605, 0.08418902]
 
 leap_canonical_pose:

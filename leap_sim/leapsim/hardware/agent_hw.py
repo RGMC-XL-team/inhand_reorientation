@@ -32,6 +32,7 @@ from leapsim.utils.rlgames_utils import RLGPUAlgoObserver
 
 from leap_hardware.srv import object_state
 from leap_task_B.leap_grasp_cube import LeapGraspCommander
+from leap_task_B.flip_stop_detection import FlipStopDetector
 # from leapsim.hardware_controller import LeapHand
 from leap_hardware.hardware_controller import LeapHand
 
@@ -208,6 +209,9 @@ class MultiHardwarePlayer(object):
         self.model_based_cube_length = _taskB_config["control"]["model_based_cube_length"]
         self.flip_fingertip_radius = _taskB_config["control"]["flip_fingertip_radius"]
         self.rot_fingertip_radius = _taskB_config["control"]["rot_fingertip_radius"]
+        self.enable_stop_after_every_flip = _taskB_config["control"]["enable_stop_after_every_flip"]
+        self.control_stop_duration = _taskB_config["control"]["control_stop_duration"]
+        self.flip_stop_detect_threshold = _taskB_config["control"]["flip_stop_detect_threshold"]
 
         ## hand reset pose
         # canonical_pose_path = os.path.join(self.package_paths["leap_sim"], "leapsim/cache", "leap_canonical_pose_v2.npy")
@@ -231,6 +235,7 @@ class MultiHardwarePlayer(object):
         self.disabled_fingers = []
 
         ## Initialize anomaly publisher
+        self.current_policy_name = ""
         self.control_fail_pub = rospy.Publisher("/hand_control_fail", Bool, queue_size=1)
 
         rospy.loginfo(f"Load config from {_taskB_config_path}!")
@@ -265,6 +270,9 @@ class MultiHardwarePlayer(object):
             self.action_name, RunPolicyAction, execute_cb=self.execute_cb, auto_start=False
         )
         self._action_server.start()
+
+        # setup flip stop detection
+        self.flip_stop_detector = FlipStopDetector(threshold=self.flip_stop_detect_threshold, verbose=False)
 
         rospy.loginfo("Software is initialized successfully!")
 
@@ -500,7 +508,12 @@ class MultiHardwarePlayer(object):
         self.reset_hand()
 
     def grasp_object(self):
-        self.grasp_commander.reset_fingertip_height_bias()
+        if self.current_policy_name == "ROT_CCW":
+            self.grasp_commander.set_fingertip_height_bias(0.015)
+        elif self.current_policy_name == "ROT_CW":
+            self.grasp_commander.set_fingertip_height_bias(0.015)
+        else:
+            self.grasp_commander.reset_fingertip_height_bias()
         curr_object_state = np.array(self.object_state_proxy().pose)
         self.grasp_commander.set_fake_cube_transform_from_pos_quat(pos=curr_object_state[0:3], quat=curr_object_state[3:7])
         self.grasp_pose = self.grasp_commander.solve_hand_grasp_IK(use_saved_ftip_pos=False)
@@ -581,6 +594,16 @@ class MultiHardwarePlayer(object):
             # interact with the hardware
             commands = target.cpu().numpy()[0]
 
+            """Implement FlipStopDetection here"""
+            if "FLIP" in self.current_policy_name and self.enable_stop_after_every_flip:
+                # use finger2 motor target pose to stop flip
+                should_stop_flip = self.flip_stop_detector.process_data_point(commands[8])
+            else:
+                should_stop_flip = False
+
+            if should_stop_flip:
+                rospy.sleep(self.control_stop_duration)
+
             if "disable_actions" not in self.current_player_config["task"]["env"]:
                 self.leap_hw.command_joint_position(commands)
 
@@ -631,6 +654,7 @@ class MultiHardwarePlayer(object):
 
         _requested_policy = goal.policy_name
         _success = False
+        self.current_policy_name = _requested_policy
         if _requested_policy == "RESET_HAND":
             self.set_run_model_based_policy()
             self.reset_hand()
@@ -655,6 +679,7 @@ class MultiHardwarePlayer(object):
                 self.grasp_object()
                 self.grasp_commander.reset_fingertip_radius()
             else:
+                self.flip_stop_detector.clear_prev_value()
                 self.grasp_commander.set_fingertip_radius(self.flip_fingertip_radius)
                 self.grasp_object()
                 self.grasp_commander.reset_fingertip_radius()

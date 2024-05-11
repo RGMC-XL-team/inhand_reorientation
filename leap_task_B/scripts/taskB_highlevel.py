@@ -27,13 +27,13 @@ from leap_task_B.msg import RunPolicyAction, RunPolicyGoal
 
 
 class TaskBHighLevel(object):
-    def __init__(self) -> None:
+    def __init__(self, online=False) -> None:
         self.config = yaml.safe_load(open(os.path.join(rospkg.RosPack().get_path("leap_task_B"), "config/taskB_XL.yaml")))
-        self._set_default()
+        self._set_default(online)
         self._initialize_service_and_actions()
         self._initialize_anomaly_detection()
 
-    def _set_default(self):
+    def _set_default(self, online=False):
         self.info = TaskBInfo()
         # _config = yaml.safe_load(open(os.path.join(rospkg.RosPack().get_path("leap_task_B"), "config/taskB_XL.yaml")))
         self.info.load(self.config)
@@ -43,7 +43,7 @@ class TaskBHighLevel(object):
         self.object_center_pos = self.info.object_center_pos
         self.info.current_face = "A"
 
-        self.online_mode = rospy.get_param("online_mode", False)
+        self.online_mode = online
         self.forced_reset = self.config["reset_options"]["forced_reset"]
 
     def _initialize_service_and_actions(self):
@@ -174,8 +174,10 @@ class TaskBHighLevel(object):
             return False
         _pose = face_pose.pose
         z_axis = get_z_axis_from_pos_quat(_pose[0:3], _pose[3:7])
-        # check alignment (cos>0.985, deg<10)
-        if np.dot(z_axis, np.array([0, 0, 1])) > 0.985:
+        # check alignment
+        # (cos>0.985, deg<10) | (cos>0.965, deg<15)
+        # if np.dot(z_axis, np.array([0, 0, 1])) > 0.985:
+        if np.dot(z_axis, np.array([0, 0, 1])) > 0.965:
             rospy.loginfo(f"Face {face} is upwards!")
             self.info._debug_face_pose = _pose
             return True
@@ -273,11 +275,12 @@ class TaskBHighLevel(object):
         return self.info.consecutive_reset_times >= self.config["reset_options"]["max_reset_times"]
 
     def execute_current_face(self):
-        self.info.current_state = TaskBState.WAIT
+        self.info.current_state = TaskBState.BEFORE_WAIT
         self.info.time_current_start = rospy.get_time()
 
         # reset hand
         self.call_reset_hand()
+        self.info.current_state = TaskBState.WAIT
         self.info.time_current_wait_start = rospy.get_time()
         rospy.loginfo("Hand reset done!")
         
@@ -437,10 +440,16 @@ class TaskBHighLevel(object):
         while num_executed_faces < self.info.face_seq_length:
             new_face = deepcopy(rospy.wait_for_message("/rgcm_eval/task2/goal", String).data)
             rospy.logwarn("Received new face: %s", new_face)
-            self.execute_new_face(new_face)
-            if self.info.current_state == TaskBState.DONE:
-                self.info.current_face = new_face
+            if new_face == self.info.current_face:
+                self.info.current_state == TaskBState.DONE
+                # print(f"Current state: {self.info.current_state}")
+                rospy.logwarn("Current face is the same as the target face, jump this time!")
                 self.record_finish()
+            else:
+                self.execute_new_face(new_face)
+                if self.info.current_state == TaskBState.DONE:
+                    self.info.current_face = new_face
+                    self.record_finish()
             num_executed_faces += 1
 
         self.stop_task()
@@ -448,6 +457,6 @@ class TaskBHighLevel(object):
 
 if __name__ == "__main__":
     rospy.init_node("taskB_highlevel", log_level=rospy.INFO)
-    taskB = TaskBHighLevel()
-    taskB.main_offline_test(mode=TaskBOfflineMode.RANDOM)
-    # taskB.main_online_test()
+    taskB = TaskBHighLevel(online=True)
+    # taskB.main_offline_test(mode=TaskBOfflineMode.RANDOM)
+    taskB.main_online_test()

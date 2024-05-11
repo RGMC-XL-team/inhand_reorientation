@@ -32,7 +32,7 @@ class TaskBInfo(object):
     def __init__(self) -> None:
         self.object_global_pose = TaskBPose()       # the object's body frame pose
         self.object_local_pose = TaskBPose()        # the object's upside face frame pose
-        self.current_state = TaskBState(0)          # the current state of the task
+        self.current_state = TaskBState(10)          # the current state of the task
 
         self.current_face = "A"                     # the current face
         self.target_face = "B"                      # the current target face
@@ -74,6 +74,7 @@ class TaskBState(Enum):
     DONE = 7
     TIMEOUT = 8
     ERROR = 9
+    BEFORE_WAIT = 10
 
 
 class TaskBOfflineMode(Enum):

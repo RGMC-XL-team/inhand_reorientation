@@ -19,6 +19,7 @@ dict_finger_grasp_point = {
 CUBE_LENGTH = 0.05              # default: 0.05, smaller for better grasp
 FINGERTIP_RADIUS = 0.01           # default: 0.01
 FINGERTIP_HEIGHT_BIAS = 0.025        # default: 0.02
+# 0.015 for the robust policy, 0.025 for the aggressive policy
 
 # canonical pose
 # hand_canonical_pose = np.array(
