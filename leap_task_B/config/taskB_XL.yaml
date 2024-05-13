@@ -7,7 +7,7 @@ face_sequence_length: 10 # the face sequence length for the task (default: 10)
 
 control:
   action_scale: 0.04167 # action scale for rl policy (default: 1/24)
-  smooth_move_time: 0.8 # time for hand to move from A to B smoothly
+  smooth_move_time: 0.5 # time for hand to move from A to B smoothly (default: 0.8)
   rl_cube_length: 0.05 # the imagined cube length for rl policy
   model_based_cube_length: 0.025 # the imagined cube length for model-based policy
   flip_fingertip_radius: 0.015 # enable loose grasp for flipping

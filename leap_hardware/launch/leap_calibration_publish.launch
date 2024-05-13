@@ -7,7 +7,7 @@
   <arg name="enable_hardware" default="true" />
   <arg name="tracking_base_frame" default="camera_link" />
   <arg name="calibration_file"
-    default="/home/yongpeng/.ros/easy_handeye/my_leap_hand_e2h_calib_eye_on_base.yaml" />
+    default="$(find leap_hardware)/config/rgmc_d405_calib.yaml" />
 
   <group if="$(arg enable_hardware)">
     <!-- (start your robot's MoveIt! stack, e.g. include its moveit_planning_execution.launch) -->

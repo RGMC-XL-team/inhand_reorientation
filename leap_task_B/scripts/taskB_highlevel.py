@@ -457,6 +457,6 @@ class TaskBHighLevel(object):
 
 if __name__ == "__main__":
     rospy.init_node("taskB_highlevel", log_level=rospy.INFO)
-    taskB = TaskBHighLevel(online=True)
-    # taskB.main_offline_test(mode=TaskBOfflineMode.RANDOM)
-    taskB.main_online_test()
+    taskB = TaskBHighLevel(online=False)
+    taskB.main_offline_test(mode=TaskBOfflineMode.RANDOM)
+    # taskB.main_online_test()
