@@ -33,6 +33,8 @@ else:
     from leaphand_real import LeapHandReal
     from std_srvs.srv import Trigger
 
+from leaphand_mujoco import Simulation
+
 from leap_model_based.leaphand_pinocchio import LeapHandPinocchio
 from leap_utils.mingrui.utils import saveDict
 from leap_utils.mingrui.utils_calc import posQuat2Isometry3d
@@ -79,8 +81,18 @@ class LeapHandControl:
         # options
         self.back_to_initial_config = True
         self.second_finger_id = "finger2"  # "finger1" or "finger2"
-        self.max_control_iter = 5  # 100
-        self.max_control_time = 18
+
+        self.strategy_id = 0  # 0 / 2
+
+        if self.strategy_id == 0:
+            self.max_control_iter = 5
+            self.max_control_time = 15
+        elif self.strategy_id == 1:
+            self.max_control_iter = 10
+            self.max_control_time = 18
+        elif self.strategy_id == 2:
+            self.max_control_iter = 10
+            self.max_control_time = 16
 
         self.env: LeapHandReal | Simulation
         if use_real_hardware:
@@ -250,7 +262,7 @@ class LeapHandControl:
         )
         _, thumb_quat = self.getFingerGlobalPose("thumb", local_position=[0, 0, 0], option="from_last_target")
 
-        fingertip_radius = -0.005 if self.use_real_hardware else 0.01
+        fingertip_radius = -0.005 if self.use_real_hardware else 0.008
 
         # First, move the hand to a config near the grasping config, but no contact
         # Second, move the hand to the grasping config and make the contact
@@ -259,7 +271,7 @@ class LeapHandControl:
                 [radius / np.sqrt(2) - 0.004, -0.02, radius / np.sqrt(2)]
             )  # x-axis offset is a BU DING
             finger1_grasp_offset = np.array([radius / np.sqrt(2), -0.02, -radius / np.sqrt(2)])
-            thumb_grasp_offset = np.array([-radius, -0.02, 0.01])  # z-axis offset is a BU DING
+            thumb_grasp_offset = np.array([-radius, -0.02, 0.005])  # z-axis offset is a BU DING: 0.01
 
             traj_hand_joint_pos, _ = self.robot_model.relaxedTrajectoryOptimization2(
                 T=1,
@@ -295,6 +307,8 @@ class LeapHandControl:
     """
 
     def moveObject(self, target_object_pos=None, target_object_quat=None, target_rel_movement=None):
+        print("Next waypoints: ")
+
         t1 = time.perf_counter()
         if target_rel_movement is not None:
             object_pos, object_quat = self.env.getQRCodePose()
@@ -310,7 +324,6 @@ class LeapHandControl:
         else:
             self.env.step(refresh=True)
 
-        last_err = 1e10
         all_traj_hand_joint_pos = []
         # repeat the trajectory optimization, like an MPC
         for control_iter in range(self.max_control_iter):
@@ -346,7 +359,7 @@ class LeapHandControl:
                 finger2_target_rel_pose=finger1_pose_in_object if self.second_finger_id == "finger2" else None,
                 weights_object_pose=[10, 10, 10, 0.01, 0.01, 0.0],
                 weights_rel_pose=[10, 10, 10, 0.001, 0.001, 0.001],
-                weights_joint_vel=1e-4,
+                weights_joint_vel=1e-4 if control_iter == 0 else 2e-4,
                 object_pose_init=object_pose,
                 hand_joint_pos_init=self.hand_target_joint_pos.copy(),
             )
@@ -366,20 +379,13 @@ class LeapHandControl:
             if control_err < planned_object_err:  # the criterion for switching to the next waypoint
                 print("Stop: control_err < planned_object_err")
                 break
-            # if control_err >= last_err:
-            #     print("Stop: control_err >= last_err")
-            #     break
             if time.time() - self.last_start_time > self.max_control_time:
                 print("Stop: timeout")
                 break
-            last_err = control_err
-
-        # print("Please press 'Enter' to continue.")
-        # input()
 
         if self.use_real_hardware and self.use_evaluator:
             self.rgmc_record_service()
-            self.last_start_time = time.time()
+        self.last_start_time = time.time()
 
         # back to the intial configuration (currently, sliding easily happens in simulation and leads to failure)
         if self.back_to_initial_config:
@@ -387,8 +393,6 @@ class LeapHandControl:
                 self.moveHandToJointPosWithForces(target_joint_pos=hand_joint_pos, max_speed=radians(30))
             for i in range(int(1.0 / self.env.timestep)):  # wait for one second
                 self.env.step()
-
-        # print("self.hand_target_joint_pos: ", self.hand_target_joint_pos)
 
         return control_err
 
@@ -452,10 +456,11 @@ class LeapHandControl:
         finger1_pos, _ = self.getFingerGlobalPose(self.second_finger_id, option="from_last_target")
         thumb_pos, _ = self.getFingerGlobalPose("thumb", option="from_last_target")
 
+        moving_dist = 0.015
         center = (finger0_pos + finger1_pos + thumb_pos) / 3.0
-        finger0_target_pos = finger0_pos + 0.02 * vec_normalize(center - finger0_pos)
-        finger1_target_pos = finger1_pos + 0.02 * vec_normalize(center - finger1_pos)
-        thumb_target_pos = thumb_pos + 0.02 * vec_normalize(center - thumb_pos)
+        finger0_target_pos = finger0_pos + moving_dist * vec_normalize(center - finger0_pos)
+        finger1_target_pos = finger1_pos + moving_dist * vec_normalize(center - finger1_pos)
+        thumb_target_pos = thumb_pos + moving_dist * vec_normalize(center - thumb_pos)
 
         traj_hand_joint_pos, _ = self.robot_model.relaxedTrajectoryOptimization2(
             T=1,
@@ -483,6 +488,7 @@ class LeapHandControl:
             self.env.step()
 
 
+# ------------------------------------------------------------------
 def test1():
     rospack = rospkg.RosPack()
     urdf_path = os.path.join(rospack.get_path("my_robot_description"), "urdf/leaphand_taskA.urdf")
@@ -500,13 +506,12 @@ def test1():
         ctrl.moveHandToInitialConfig()
         ctrl.initialGrasping()
 
+        ctrl.last_start_time = time.time()
+
         object_pos, object_quat = ctrl.env.getQRCodePose()
         all_control_err = []
 
         for waypoint_idx, target_waypoint in enumerate(target_waypoints):
-            if waypoint_idx != 2:
-                continue
-
             print(f"waypoint_idx: {waypoint_idx}")
 
             target_pos = np.array([target_waypoint["x"], target_waypoint["y"], target_waypoint["z"]])
@@ -515,8 +520,8 @@ def test1():
             control_err = ctrl.moveObject(target_object_pos=target_object_pos, target_object_quat=object_quat)
             all_control_err.append(control_err)
 
-            print("Please press 'Enter' to continue ...")
-            input()
+            # print("Please press 'Enter' to continue ...")
+            # input()
 
         print("all_control_err: ", all_control_err)
         print("ave_control_err: ", np.mean(all_control_err))
@@ -544,8 +549,6 @@ def real_test():
     ctrl = LeapHandControl(robot_model=robot_model, use_real_hardware=True)
     all_control_err = []
 
-    # print(ctrl.hand_target_joint_pos)
-
     ctrl.moveHandToInitialConfig()
     ctrl.initialGrasping()
 
@@ -555,11 +558,8 @@ def real_test():
     ctrl.last_start_time = time.time()
     object_pos, object_quat = ctrl.env.getQRCodePose()
 
-    for i in range(10):
+    for i in range(1):
         for waypoint_idx, target_waypoint in enumerate(target_waypoints):
-            # if waypoint_idx != 2:
-            #     continue
-
             target_pos = np.array([target_waypoint["x"], target_waypoint["y"], target_waypoint["z"]])
             target_object_pos = object_pos + target_pos
 
@@ -575,7 +575,7 @@ def real_test():
         print("ave_control_err: ", np.mean(all_control_err))
 
 
-def real_test_with_evaluator():
+def real_test_with_evaluator(b_new_object=False):
     rospy.init_node("leaphand_real")
     robot_model, _ = read_configs()
 
@@ -586,6 +586,9 @@ def real_test_with_evaluator():
 
     ctrl.moveHandToInitialConfig()
     ctrl.initialGrasping()
+
+    if b_new_object:
+        ctrl.humanGuidedGrasp()
 
     print("Please press 'Enter' to continue ...")
     input()
@@ -618,83 +621,11 @@ def real_test_with_evaluator():
     print("ave_control_err: ", np.mean(all_control_err))
 
 
-def real_test_new_object():
-    rospy.init_node("leaphand_real")
-    robot_model, _ = read_configs()
-
-    ctrl = LeapHandControl(robot_model=robot_model, use_real_hardware=True)
-
-    ctrl.moveHandToInitialConfig()
-    ctrl.initialGrasping()
-    ctrl.humanGuidedGrasp()
-
-
-# --------------------------------------
-def searchBestObjectPosition():
-    rospack = rospkg.RosPack()
-    urdf_path = os.path.join(rospack.get_path("my_robot_description"), "urdf/leaphand.urdf")
-    robot_model = LeapHandPinocchio(urdf_path=urdf_path)
-
-    task_cfg_path = os.path.join(rospack.get_path("leap_task_A"), "config/taskA_corners.yaml")
-    with open(task_cfg_path) as stream:
-        task_cfg = yaml.safe_load(stream)
-        print(task_cfg)
-    target_waypoints = task_cfg["waypoints"]
-
-    ctrl = LeapHandControl(robot_model=robot_model, use_real_hardware=False)
-
-    res = {"object_pos": [], "all_control_err": [], "ave_control_err": []}
-
-    for object_x in np.arange(-0.02, 0.02, 0.005):
-        for object_y in np.arange(-0.02, 0.02, 0.005):
-            for object_z in [0]:
-                # for object_x in [-0.005]:
-                #     for object_y in [0.01]:
-                #         for object_z in [0]:
-                # change the position of the target object
-                ctrl.env.physics.bind(ctrl.env.model.find("body", "cylinder_mujoco/object")).pos = [
-                    object_x,
-                    object_y,
-                    object_z,
-                ]
-
-                ctrl.moveHandToInitialConfig()
-                ctrl.initialGrasping()
-
-                object_pos, object_quat = ctrl.env.getQRCodePose()
-                all_control_err = []
-                for waypoint_idx, target_waypoint in enumerate(target_waypoints):
-                    print(f"waypoint_idx: {waypoint_idx}")
-                    target_pos = np.array([target_waypoint["x"], target_waypoint["y"], target_waypoint["z"]])
-                    target_object_pos = object_pos + target_pos
-
-                    control_err = ctrl.moveObjectMPC(
-                        target_object_pos=target_object_pos, target_object_quat=object_quat
-                    )
-
-                    all_control_err.append(control_err)
-                    if control_err > 0.1:
-                        break
-
-                print("object pos: ", [object_x, object_y, object_z])
-                print("ave_control_err: ", np.mean(all_control_err))
-                res["object_pos"].append([object_x, object_y, object_z])
-                res["all_control_err"].append(all_control_err)
-                res["ave_control_err"].append(np.mean(all_control_err))
-
-                ctrl.env.physics.reset()
-
-                saveDict(path=os.path.join(rospack.get_path("leap_task_A"), "results"), dict=res)
-
-
 # ----------------------------------------------
 if __name__ == "__main__":
-    # test1()  # simulation
+    test1()  # simulation
     # real_test()  # real-world
-    real_test_with_evaluator()
-    # real_test_new_object()
-
-    # searchBestObjectPosition()
+    # real_test_with_evaluator(b_new_object=False)
 
 
 # -------------------- backup -----------------------------
@@ -778,3 +709,104 @@ if __name__ == "__main__":
 #     # self.env.ctrlHandJointPos(target_joint_pos=hand_target_joint_pos_with_force)
 #     for i in range(int(1.0 / self.env.timestep)):
 #         self.env.step()
+
+
+# def real_test_new_object():
+#     rospy.init_node("leaphand_real")
+#     robot_model, _ = read_configs()
+
+#     ctrl = LeapHandControl(robot_model=robot_model, use_real_hardware=True)
+#     ctrl.use_evaluator = True
+
+#     # ctrl.moveHandToInitialConfig()
+#     # ctrl.initialGrasping()
+#     ctrl.humanGuidedGrasp()
+
+#     print("Please press 'Enter' to continue ...")
+#     input()
+
+#     ctrl.rgmc_start_service()  # call the evaluator to start
+#     ctrl.last_start_time = time.time()
+#     object_pos, object_quat = ctrl.env.getQRCodePose()
+
+#     while ctrl.task_goal is None:
+#         rospy.loginfo_once("Waiting for task goal ...")
+
+#     last_target_tag_pos_in_world = None
+#     all_control_err = []
+#     while True:
+#         target_tag_pos_in_world = np.array([ctrl.task_goal.point.x, ctrl.task_goal.point.y, ctrl.task_goal.point.z])
+
+#         if last_target_tag_pos_in_world is not None and np.all(target_tag_pos_in_world == last_target_tag_pos_in_world):
+#             break
+#         last_target_tag_pos_in_world = target_tag_pos_in_world.copy()
+
+#         target_object_pos = target_tag_pos_in_world
+#         control_err = ctrl.moveObject(target_object_pos=target_object_pos, target_object_quat=object_quat)
+#         all_control_err.append(control_err)
+
+#         # print("Please press 'Enter' to continue ...")
+#         # input()
+
+#     ctrl.rgmc_stop_service()
+
+#     print("all_control_err: ", all_control_err)
+#     print("ave_control_err: ", np.mean(all_control_err))
+
+
+# # --------------------------------------
+# def searchBestObjectPosition():
+#     rospack = rospkg.RosPack()
+#     urdf_path = os.path.join(rospack.get_path("my_robot_description"), "urdf/leaphand.urdf")
+#     robot_model = LeapHandPinocchio(urdf_path=urdf_path)
+
+#     task_cfg_path = os.path.join(rospack.get_path("leap_task_A"), "config/taskA_corners.yaml")
+#     with open(task_cfg_path) as stream:
+#         task_cfg = yaml.safe_load(stream)
+#         print(task_cfg)
+#     target_waypoints = task_cfg["waypoints"]
+
+#     ctrl = LeapHandControl(robot_model=robot_model, use_real_hardware=False)
+
+#     res = {"object_pos": [], "all_control_err": [], "ave_control_err": []}
+
+#     for object_x in np.arange(-0.02, 0.02, 0.005):
+#         for object_y in np.arange(-0.02, 0.02, 0.005):
+#             for object_z in [0]:
+#                 # for object_x in [-0.005]:
+#                 #     for object_y in [0.01]:
+#                 #         for object_z in [0]:
+#                 # change the position of the target object
+#                 ctrl.env.physics.bind(ctrl.env.model.find("body", "cylinder_mujoco/object")).pos = [
+#                     object_x,
+#                     object_y,
+#                     object_z,
+#                 ]
+
+#                 ctrl.moveHandToInitialConfig()
+#                 ctrl.initialGrasping()
+
+#                 object_pos, object_quat = ctrl.env.getQRCodePose()
+#                 all_control_err = []
+#                 for waypoint_idx, target_waypoint in enumerate(target_waypoints):
+#                     print(f"waypoint_idx: {waypoint_idx}")
+#                     target_pos = np.array([target_waypoint["x"], target_waypoint["y"], target_waypoint["z"]])
+#                     target_object_pos = object_pos + target_pos
+
+#                     control_err = ctrl.moveObjectMPC(
+#                         target_object_pos=target_object_pos, target_object_quat=object_quat
+#                     )
+
+#                     all_control_err.append(control_err)
+#                     if control_err > 0.1:
+#                         break
+
+#                 print("object pos: ", [object_x, object_y, object_z])
+#                 print("ave_control_err: ", np.mean(all_control_err))
+#                 res["object_pos"].append([object_x, object_y, object_z])
+#                 res["all_control_err"].append(all_control_err)
+#                 res["ave_control_err"].append(np.mean(all_control_err))
+
+#                 ctrl.env.physics.reset()
+
+#                 saveDict(path=os.path.join(rospack.get_path("leap_task_A"), "results"), dict=res)

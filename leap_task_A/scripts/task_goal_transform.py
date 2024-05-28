@@ -22,8 +22,6 @@ class TaskGoalTransform:
         pointstamped.header.frame_id = "camera_color_optical_frame"
         pointstamped.point = msg
 
-        print(pointstamped)
-
         pointstamped_world = self.tfBuffer.transform(pointstamped, "world")
         self.goal_pub.publish(pointstamped_world)
 
