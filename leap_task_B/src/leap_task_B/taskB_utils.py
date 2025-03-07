@@ -81,6 +81,7 @@ class TaskBOfflineMode(Enum):
     FIXED = 0
     USER = 1
     RANDOM = 2
+    RANDOM_FROM_FILE = 3
 
 
 M_PI = np.pi

@@ -12,6 +12,8 @@
     <mesh name="fingertip_custom" file="fingertip_custom.stl"/>
   </asset>
   <worldbody>
+    <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
+    <geom name="floor" pos="0 0 -0.1" size="0 0 0.05" type="plane" material="groundplane"/>
     <body name="palm_lower">
     <geom pos="-0.0200952 -0.0257578 0.0347224" quat="0 1 0 0" type="mesh" rgba="0.603922 0.14902 0.14902 1" mesh="palm_lower"/>
     <body name="mcp_joint" pos="-0.00709525 -0.0230578 0.0187224" quat="-0.5 0.5 0.5 0.5">

@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ========================================================== -->
+  <!-- Adds the required tags to simulate one joint in gazebo     -->
+  <!--                                                            -->
+  <!-- joint - Name of the panda joint to simulate                -->
+  <!-- transmission - type of the transmission of the joint       -->
+  <!-- ========================================================== -->
+  <xacro:macro name="gazebo-joint" params="joint transmission:=hardware_interface/EffortJointInterface">
+    <gazebo reference="${joint}">
+      <!-- Needed for ODE to output external wrenches on joints -->
+      <provideFeedback>true</provideFeedback>
+    </gazebo>
+
+    <transmission name="${joint}_transmission">
+      <type>transmission_interface/SimpleTransmission</type>
+      <joint name="${joint}">
+        <hardwareInterface>${transmission}</hardwareInterface>
+      </joint>
+      <actuator name="${joint}_motor">
+        <hardwareInterface>${transmission}</hardwareInterface>
+      </actuator>
+    </transmission>
+  </xacro:macro>
+
+</robot>

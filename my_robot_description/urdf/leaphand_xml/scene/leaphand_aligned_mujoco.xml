@@ -1,12 +1,14 @@
 <mujoco model="leap_hand">
-    <compiler angle="radian" />
-
-    <option gravity="0 0 0" />
-
     <default>
-        <joint damping="0.2" />
+        <joint armature="0.01" />
         <!-- <position kp="1" kv="0.01" /> -->
-        <position kp="50" kv="0.1" />
+        <position inheritrange="1" kp="20" dampratio="1" />
+        <default class="collision">
+            <geom group="3" type="mesh"/>
+        </default>
+        <default class="visual">
+            <geom group="2" type="mesh" contype="0" conaffinity="0" density="0" material="black"/>
+        </default>
     </default>
 
     <visual>
@@ -16,6 +18,7 @@
     </visual>
 
     <asset>
+        <material name="black" rgba=".2 .2 .2 1"/>
         <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072" />
         <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
             markrgb="0.8 0.8 0.8" width="300" height="300" />
@@ -23,18 +26,18 @@
     </asset>
 
     <!-- include the description of the hand body -->
-    <include file="./leaphand.xml" />
+    <include file="./leaphand_aligned.xml" />
 
     <contact>
-        <exclude body1="palm_lower" body2="mcp_joint" />
-        <exclude body1="palm_lower" body2="mcp_joint_2" />
-        <exclude body1="palm_lower" body2="mcp_joint_3" />
-        <exclude body1="palm_lower" body2="pip_4" />
-        <exclude body1="palm_lower" body2="thumb_dip" />
-        <exclude body1="palm_lower" body2="thumb_pip" />
-        <exclude body1="mcp_joint" body2="pip" />
-        <exclude body1="pip" body2="dip" />
-        <exclude body1="mcp_joint" body2="dip" />
+        <exclude body1="palm_lower" body2="mcp_joint"/>
+        <exclude body1="palm_lower" body2="mcp_joint_2"/>
+        <exclude body1="palm_lower" body2="mcp_joint_3"/>
+        <exclude body1="palm_lower" body2="thumb_dip"/>
+        <exclude body1="palm_lower" body2="thumb_pip"/>
+        <exclude body1="palm_lower" body2="pip_4"/>
+        <exclude body1="mcp_joint" body2="dip"/>
+        <exclude body1="mcp_joint_3" body2="dip_3"/>
+        <exclude body1="mcp_joint_2" body2="dip_2"/>
     </contact>
 
     <actuator>

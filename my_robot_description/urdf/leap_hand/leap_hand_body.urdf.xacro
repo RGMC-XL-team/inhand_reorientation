@@ -182,6 +182,7 @@
             <axis xyz="0 0 -1" />
             <limit effort="0.95" velocity="8.48" lower="-1.047" upper="1.047" />
             <joint_properties friction="0.0" />
+            <dynamics D="1" K="7000" damping="0.003" friction="0.0" mu_coulomb="0" mu_viscous="16" />
         </joint>
 
         <joint name="joint_1" type="revolute">

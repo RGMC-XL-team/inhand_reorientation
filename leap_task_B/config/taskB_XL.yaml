@@ -17,6 +17,7 @@ control:
   flip_stop_detect_threshold: 0.01 # the threshold for detecting stop after flip
 
 reset_options:
+  allow_reset: True  # for experiment, will disable reset if set to True
   forced_reset: False # forced reset before rot and flip (default: False)
   max_reset_times: 1 # max reset times before rot and flip (default: 2)
 
@@ -30,11 +31,11 @@ anomaly_detection:
   max_wait_time: 2.0 # the maximum time for waiting (default: 2.0)
 
 # object_center_pos: [-0.0592509, 0.02004605, 0.08418902] # the object center position in the world frame (default: [-0.0592509, 0.03504605, 0.08918902])
-object_center_pos: [-0.055, 0.02504605, 0.08418902]
+object_center_pos: [-0.05, 0.03, 0.08418902]
 
 reset_object_pos:
   # rot: [-0.055, 0.02504605, 0.08418902] # this will make ROT_CCW unrobust
-  rot: [-0.055, 0.045, 0.08418902] # this will make ROT_CCW unrobust
+  rot: [-0.05, 0.045, 0.08418902] # this will make ROT_CCW unrobust
   flip: [-0.05, 0.02504605, 0.08418902]
 
 leap_canonical_pose:
@@ -93,5 +94,5 @@ reset_via_hand_pos:
     -0.34508689, 0.17646657, -0.41258202, 0.15499075,
     -0.18095103, 1.64602029, 1.79635029, 1.11986481,
     -0.34508689, 0.1733986, -0.42025195, 0.18106826,
-    1.02629177, 0.65353452, 1.34229173, 0.95419486
+    1.02629177, 0.65353452, 1.34229173, 0.95419488
   ]

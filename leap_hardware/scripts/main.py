@@ -35,14 +35,14 @@ class LeapNode:
         # You can put the correct port here or have the node auto-search for a hand at the first 3 ports.
         self.motors = motors = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
         try:
-            self.dxl_client = DynamixelClient(motors, "/dev/ttyUSB0", 4000000)
+            self.dxl_client = DynamixelClient(motors, "/dev/ttyUSB0", 3000000)
             self.dxl_client.connect()
         except Exception:
             try:
-                self.dxl_client = DynamixelClient(motors, "/dev/ttyUSB1", 4000000)
+                self.dxl_client = DynamixelClient(motors, "/dev/ttyUSB1", 3000000)
                 self.dxl_client.connect()
             except Exception:
-                self.dxl_client = DynamixelClient(motors, "COM13", 4000000)
+                self.dxl_client = DynamixelClient(motors, "COM13", 3000000)
                 self.dxl_client.connect()
         # Enables position-current control mode and the default parameters, it commands a position and then caps the current so the motors don't overload
         self.dxl_client.sync_write(motors, np.ones(len(motors)) * 5, 11, 1)

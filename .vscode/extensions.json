@@ -1,8 +1,0 @@
-{
-    "recommendations": [
-        "ms-python.mypy-type-checker",
-        "charliermarsh.ruff",
-        "redhat.vscode-xml",
-        "redhat.vscode-yaml"
-    ]
-}

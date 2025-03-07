@@ -465,9 +465,14 @@ class MultiHardwarePlayer(object):
                 [self.rot_reset_pos[0:2].copy(),
                 [curr_object_state[2]],
                 desired_object_quat])
-        else:
+        elif current_policy == "FLIP":
             desired_object_pose = np.concatenate(
                 [self.flip_reset_pos[0:2].copy(),
+                [curr_object_state[2]],
+                desired_object_quat])
+        else:
+            desired_object_pose = np.concatenate(
+                [self.object_center_pose[0:2].copy(),
                 [curr_object_state[2]],
                 desired_object_quat])
             
@@ -658,6 +663,10 @@ class MultiHardwarePlayer(object):
         if _requested_policy == "RESET_HAND":
             self.set_run_model_based_policy()
             self.reset_hand()
+            _success = True
+        elif _requested_policy in ['RESET_OBJECT_TEST']:
+            self.set_run_model_based_policy()
+            self.reset_object(current_policy="NONE")
             _success = True
         elif _requested_policy in ["RESET_OBJECT", "RESET_OBJECT_ROT"]:
             self.set_run_model_based_policy()

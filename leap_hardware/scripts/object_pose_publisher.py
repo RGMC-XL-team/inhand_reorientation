@@ -11,7 +11,8 @@ import numpy as np
 import rospy
 import tf2_ros
 import yaml
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, TransformStamped
+from visualization_msgs.msg import Marker
 
 from leap_hardware import ros_utils as rutil 
 from leap_hardware.mean_std import RunningMeanCovariance
@@ -34,16 +35,48 @@ class PoseStatus(Enum):
     FOUND_IN_CAM1 = 3
 
 
+def get_visualization_marker(transform):
+    marker = Marker()
+    marker.header.frame_id = "world"
+    marker.header.stamp = rospy.Time.now()
+    marker.ns = "cube"
+    marker.id = 0
+    marker.type = Marker.CUBE
+    marker.action = Marker.ADD
+
+    marker.pose.position.x = transform.translation.x
+    marker.pose.position.y = transform.translation.y
+    marker.pose.position.z = transform.translation.z
+    marker.pose.orientation = transform.rotation
+    marker.scale.x = 0.05
+    marker.scale.y = 0.05
+    marker.scale.z = 0.05
+
+    # 设置颜色
+    marker.color.r = 0.1
+    marker.color.g = 0.5
+    marker.color.b = 0.5
+    marker.color.a = 0.8
+
+    return marker
+
+
 class ObjectPosePublisher:
     def __init__(self) -> None:
         self.private_brodcaster = tf2_ros.TransformBroadcaster()
         self.tfBuffer = tf2_ros.Buffer()
         self.private_listener = tf2_ros.TransformListener(self.tfBuffer)
+        self.pose_pub = rospy.Publisher("/object_transform", TransformStamped, queue_size=10)
+        self.vis_pub = rospy.Publisher("/visualization_marker", Marker, queue_size=10)
 
         publish_rate = rospy.get_param("/cube_pose_publisher/publish_rate", 30)
         self.rate = rospy.Rate(publish_rate)
 
         self.enable_second_camera = rospy.get_param("/cube_pose_publisher/enable_second_camera", True)
+        
+        if not self.enable_second_camera:
+            rospy.logwarn("Second camera is disabled!")
+        
         if self.enable_second_camera:
             self.second_camera_name = rospy.get_param("/cube_pose_publisher/second_camera_name", "camera_d435")
 
@@ -74,6 +107,7 @@ class ObjectPosePublisher:
         self.obj_status = PoseStatus.NOTFOUND
         self.tag_receive_dt = {}
         self.all_tag_ids = []
+        self.latest_object_tf_ros = None
 
         self.load_cube_tag_config()
         self.load_cube_face_offset()
@@ -279,8 +313,16 @@ class ObjectPosePublisher:
         object_tf_ros = rutil.rigidtransform_to_ros_transform(
             object_tf, parent_frame="world", child_frame=self.object_tf_name
         )
+        self.latest_object_tf_ros = object_tf_ros
+        self.pose_pub.publish(object_tf_ros)
         self.private_brodcaster.sendTransform(object_tf_ros)
         return True
+    
+    def publish_visualization_msg(self):
+        if self.latest_object_tf_ros is None:
+            return
+        marker = get_visualization_marker(self.latest_object_tf_ros.transform)
+        self.vis_pub.publish(marker)
 
     def compute_other_states(self):
         dt = max((self.current_tf_time - self.last_tf_time).to_sec(), 1e-5)
@@ -316,6 +358,8 @@ class ObjectPosePublisher:
 
     def main_loop(self):
         while not rospy.is_shutdown():
+            # rospy.logwarn_throttle(1, "main loop")
+            
             # update tag pose and status
             self.lookup_tag_poses_from_tf()
 
@@ -328,6 +372,7 @@ class ObjectPosePublisher:
 
             # update object velocity
             if pose_is_updated:
+                self.publish_visualization_msg()
                 self.compute_other_states()
 
             self.rate.sleep()

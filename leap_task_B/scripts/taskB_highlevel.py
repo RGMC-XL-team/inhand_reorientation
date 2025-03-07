@@ -13,6 +13,7 @@ import time
 import rospy
 import rospkg
 import actionlib
+from geometry_msgs.msg import TransformStamped
 from std_msgs.msg import String, Bool
 from std_srvs.srv import Trigger
 
@@ -22,6 +23,7 @@ from leap_task_B.taskB_utils import (
     get_z_axis_from_pos_quat,
     compute_angle_between_two_axis
 )
+# from leap_task_B.taskB_recorder import TaskBTimer
 from leap_hardware.srv import face_pose, face_poseRequest, object_state
 from leap_task_B.msg import RunPolicyAction, RunPolicyGoal
 
@@ -32,6 +34,8 @@ class TaskBHighLevel(object):
         self._set_default(online)
         self._initialize_service_and_actions()
         self._initialize_anomaly_detection()
+
+        # self.timer = TaskBTimer()
 
     def _set_default(self, online=False):
         self.info = TaskBInfo()
@@ -44,6 +48,7 @@ class TaskBHighLevel(object):
         self.info.current_face = "A"
 
         self.online_mode = online
+        self.allow_reset = self.config["reset_options"]["allow_reset"]
         self.forced_reset = self.config["reset_options"]["forced_reset"]
 
     def _initialize_service_and_actions(self):
@@ -73,6 +78,10 @@ class TaskBHighLevel(object):
 
     def _check_anomaly(self, event=None):
         """Check if anomaly occurs in the manipulation"""
+        if not self.allow_reset:
+            rospy.logwarn("Anomaly detection is disabled when reset is disabled!")
+            return
+        
         anomaly_detected = False
 
         # for waiting, check if timeout
@@ -262,11 +271,34 @@ class TaskBHighLevel(object):
         
     def call_reset_object(self, current_policy="ROT"):
         """Reset the object to the center"""
+        if not self.allow_reset:
+            rospy.logwarn("Reset is disabled!")
+            return
+        
+        t_reset_start = time.time()
+
         self.info.running_policy = f"RESET_OBJECT_{current_policy}"
         goal = RunPolicyGoal(policy_name=f"RESET_OBJECT_{current_policy}")
         self._action_client.send_goal(goal)
         self._action_client.wait_for_result()
         self.info.consecutive_reset_times += 1
+
+        t_reset_end = time.time()
+        # self.timer.add_time_reset_object(t_reset_end - t_reset_start)
+
+    def get_object_pose(self):
+        """ Return x, y, z, w, x, y, z """
+        transform = rospy.wait_for_message("/object_transform", TransformStamped).transform
+        pose = [
+            transform.translation.x,
+            transform.translation.y,
+            transform.translation.z,
+            transform.rotation.w,
+            transform.rotation.x,
+            transform.rotation.y,
+            transform.rotation.z
+        ]
+        return pose
 
     def clear_reset_object_status(self):
         self.info.consecutive_reset_times = 0.0
@@ -275,6 +307,7 @@ class TaskBHighLevel(object):
         return self.info.consecutive_reset_times >= self.config["reset_options"]["max_reset_times"]
 
     def execute_current_face(self):
+        # self.timer.reset()
         self.info.current_state = TaskBState.BEFORE_WAIT
         self.info.time_current_start = rospy.get_time()
 
@@ -309,11 +342,13 @@ class TaskBHighLevel(object):
                     """Configure the rotation policy here"""
                     self.info.time_current_rot_start = rospy.get_time()
                     if self._check_should_rotate_cw():
+                        t_rot_cw_start = time.time()
                         self.info.running_policy = "ROT_CW"
                         goal = RunPolicyGoal(policy_name="ROT_CW")
                         self._action_client.send_goal(goal)
                         self.info.current_state = TaskBState.ROTATE_CW
                     else:
+                        t_rot_ccw_start = time.time()
                         self.info.running_policy = "ROT_CCW"
                         goal = RunPolicyGoal(policy_name="ROT_CCW")
                         self._action_client.send_goal(goal)
@@ -327,8 +362,14 @@ class TaskBHighLevel(object):
                 """Continue rotating the object"""
                 if self._check_rotate_terminate_condition():
                     """Stop rotating the object"""
-                    if self.info.running_policy == "ROT_CCW":
+                    t_rot_end = time.time()
+                    if self.info.running_policy == "ROT_CW":
+                        pass
+                        # self.timer.add_time_rot_cw(t_rot_end - t_rot_cw_start)
+                    elif self.info.running_policy == "ROT_CCW":
                         self._action_client.cancel_goal()
+                        # self.timer.add_time_rot_ccw(t_rot_end - t_rot_ccw_start)
+                    # self.timer.add_object_pose(self.get_object_pose())
                     self.info.current_state = TaskBState.BEFORE_FLIP
 
             elif self.info.current_state == TaskBState.BEFORE_FLIP:
@@ -342,6 +383,7 @@ class TaskBHighLevel(object):
                     self.info.running_policy = "FLIP_OUT"
                     goal = RunPolicyGoal(policy_name="FLIP_OUT")
                     _debug_flip_start_time = time.time()
+                    t_flip_start = time.time()
                     self._action_client.send_goal(goal)
                     self.info.current_state = TaskBState.FLIP_OUT
                 else:
@@ -361,6 +403,9 @@ class TaskBHighLevel(object):
                         rospy.logwarn(f"FLIP cancelled after {_debug_flip_cancelled_time} seconds!")
                         if _debug_flip_cancelled_time < 1.0:
                             print("current face pose: ", self.info._debug_face_pose)
+                    t_flip_end = time.time()
+                    # self.timer.add_time_flip(t_flip_end - t_flip_start)
+                    # self.timer.add_object_pose(self.get_object_pose())
                     self.info.current_state = TaskBState.DONE
                     break
 
@@ -401,7 +446,7 @@ class TaskBHighLevel(object):
                 if self.info.current_state == TaskBState.DONE:
                     self.info.current_face = new_face
         elif mode == TaskBOfflineMode.FIXED:
-            example_sequence = ["A", "B", "C", "D", "E", "F", "B", "E", "C", "E", "D"]
+            example_sequence = ["A", "B", "C", "D", "E", "F", "E", "D", "C", "B"] * 10
             for new_face in example_sequence[1:]:
                 self.execute_new_face(new_face)
                 if self.info.current_state == TaskBState.DONE:
@@ -418,6 +463,17 @@ class TaskBHighLevel(object):
                     num_executed_faces += 1
                 if num_executed_faces >= self.info.face_seq_length:
                     break
+        elif mode == TaskBOfflineMode.RANDOM_FROM_FILE:
+            self.info.current_face = "A"
+            sequence_from_file = yaml.safe_load(open(os.path.join(rospkg.RosPack().get_path("leap_task_B"), "config/taskB_face_sequence_100.yaml")))
+            for new_face in sequence_from_file[1:]:
+                t_exec_start = time.time()
+                self.execute_new_face(new_face)
+                t_exec_end = time.time()
+                exec_time = t_exec_end - t_exec_start
+                # self.timer.save_data(new_face, exec_time)
+                if self.info.current_state == TaskBState.DONE:
+                    self.info.current_face = new_face
         else:
             raise NotImplementedError
 
@@ -457,6 +513,8 @@ class TaskBHighLevel(object):
 
 if __name__ == "__main__":
     rospy.init_node("taskB_highlevel", log_level=rospy.INFO)
+    # MODIFY THIS TWO LINES TO RUN ONLINE
     taskB = TaskBHighLevel(online=False)
-    taskB.main_offline_test(mode=TaskBOfflineMode.RANDOM)
+    # taskB.main_offline_test(mode=TaskBOfflineMode.FIXED)
+    taskB.main_offline_test(mode=TaskBOfflineMode.FIXED)
     # taskB.main_online_test()

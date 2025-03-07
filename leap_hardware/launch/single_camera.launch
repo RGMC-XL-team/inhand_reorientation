@@ -8,21 +8,24 @@
     <arg name="camera_0_calib_file"
         default="$(find leap_hardware)/config/rgmc_d405_calib.yaml" />
 
-    <!-- Start camera -->
+    <!-- Start cameras -->
     <include file="$(find realsense2_camera)/launch/rs_camera.launch">
         <arg name="serial_no" value="$(arg camera_0_serial_no)" />
         <arg name="camera" value="$(arg camera_0_name)" />
     </include>
 
     <!-- Start Aruco detection -->
-    <include file="$(find apriltag_ros)/launch/continuous_detection.launch">
+    <include file="$(find leap_hardware)/launch/rgmc_continuous_detection.launch">
         <arg name="camera_name" value="$(arg camera_0_name)" />
         <arg name="image_topic" value="color/image_raw" />
+        <arg name="settings_file" default="$(find leap_hardware)/config/settings_d405.yaml" />
+        <arg name="tags_file" default="$(find leap_hardware)/config/tags.yaml" />
     </include>
 
     <!-- Publish the calibration result -->
     <include file="$(find leap_hardware)/launch/leap_calibration_publish.launch">
         <arg name="enable_hardware" value="false" />
+        <arg name="tracking_base_frame" value="camera_d405_link" />
         <arg name="calibration_file"
             default="$(arg camera_0_calib_file)" />
     </include>
@@ -31,6 +34,7 @@
     <node name="cube_pose_publisher" pkg="leap_hardware" type="object_pose_publisher.py"
         output="screen">
         <param name="publish_rate" value="30" />
+        <param name="enable_second_camera" value="false" />
         <param name="object_name" value="cube" />
         <!-- <param name="smooth_factor" value="0.25" /> -->
         <param name="smooth_factor" value="0.1" />

@@ -383,3 +383,14 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/ros,linux,python,c++,macos,windows,git,visualstudiocode
+
+# Experiment code and data
+leap_task_B/scripts/plot
+leap_task_B/data
+leap_task_B/src/leap_task_B/taskB_recorder.py
+leap_task_B/scripts/test/test_reset_hand.py
+leap_task_B/scripts/gen_random_sequence.py
+leap_task_B/config/taskB_face_sequence_100.yaml
+
+# docs
+doc/
