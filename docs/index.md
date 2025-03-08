@@ -3,7 +3,7 @@
 <p style="text-align: center;"> 
 <!-- <a href="https://arxiv.org/abs/2502.07472" style="color: #0ABAB5; text-decoration: underline;">arXiv</a> | -->
 <a href="https://github.com/RGMC-XL-team/inhand_reorientation" style="color: #0ABAB5; text-decoration: underline;">Code</a> |
-<a href="https://drive.google.com/drive/folders/1GN-KxQTjhRVIoPXXx9aKyV5DzTSBRsf9?usp=drive_link" style="color: #0ABAB5; text-decoration: underline;">Dataset</a>
+<a href="https://drive.google.com/drive/folders/1GN-KxQTjhRVIoPXXx9aKyV5DzTSBRsf9?usp=drive_link" style="color: #0ABAB5; text-decoration: underline;">Dataset</a> |
 <a href="https://drive.google.com/drive/folders/1wRGaV5bB4EGYVtHWL2-WbT_hgUvj4KIQ?usp=drive_link" style="color: #0ABAB5; text-decoration: underline;">CAD Files</a>
 </p>
 
@@ -13,9 +13,11 @@ The paper has been submitted to IEEE RA-P.
 
 ## Video
 
-<video controls style="width: 100%; height: auto;">
-    <source src="https://youtu.be/okt8-gXMCkc" type="video/mp4">
-</video>
+<!-- <video controls style="width: 100%; height: auto;">
+    <source src="https://youtu.be/bOGBPTh_lsU?si=lXdxABpvdsCi3GbI" type="video/mp4">
+</video> -->
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/bOGBPTh_lsU?si=lXdxABpvdsCi3GbI" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
 ## Abstract
 
