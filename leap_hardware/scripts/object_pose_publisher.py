@@ -7,8 +7,11 @@ and publish the newest tag frames
 
 from enum import Enum
 
+import os
 import numpy as np
 import rospy
+import rospkg
+rospack = rospkg.RosPack()
 import tf2_ros
 import yaml
 from geometry_msgs.msg import Pose, TransformStamped
@@ -20,10 +23,11 @@ from leap_hardware.srv import object_state, face_pose
 from apriltag_ros.msg import AprilTagDetectionArray
 
 DEFAULT_CUBE_FACE_OFFSET_FILE = (
-    "/home/yongpeng/competition/RGMC_XL/leap_ws/src/leap_hardware/config/cube_face_offset.yaml"
+    os.path.join(rospack.get_path("leap_hardware"), "config/cube_face_offset.yaml")
 )
+
 DEFAULT_CUBE_TAG_FILE = (
-    "/home/yongpeng/competition/RGMC_XL/leap_ws/src/RGMC_In-Hand_Manipulation_2024/config/tags_cube.yaml"
+    os.path.join(rospack.get_path("RGMC_In-Hand_Manipulation_2024"), "config/tags_cube.yaml")
 )
 DEFAULT_APRILTAG_OFFSET = [0.01, 0.01, 0.0]
 

@@ -1,4 +1,3 @@
-#!/home/yongpeng/anaconda3/envs/rlgpu/bin/python
 """
     This script is modified from deploy.py, with the
     removal of all Hydra related stuff.
@@ -60,7 +59,7 @@ def fill_config(config):
 
     return config
 
-def restore(policy_config):
+def restore(policy_config, leap_sim_path):
     """Restore the RL network from config"""
     # set default
     policy_config = fill_config(policy_config)
@@ -98,7 +97,8 @@ def restore(policy_config):
     runner.load(rlg_config_dict)
     runner.reset()
 
-    args = {"train": False, "play": True, "checkpoint": policy_config["checkpoint"], "sigma": None}
+    overide_ckpt_path = os.path.join(leap_sim_path, 'leapsim/runs', policy_config["checkpoint"])
+    args = {"train": False, "play": True, "checkpoint": overide_ckpt_path, "sigma": None}
 
     _player = runner.create_player()
     _restore(_player, args)
@@ -192,7 +192,7 @@ class MultiHardwarePlayer(object):
             if policy_config is None:
                 player, extra_args = None, {}
             else:
-                player, extra_args = restore(policy_config)
+                player, extra_args = restore(policy_config, self.package_paths['leap_sim'])
             self.policy_name_to_player_map[name] = player
             self.policy_name_to_extra_args_map[name] = extra_args
 

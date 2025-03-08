@@ -265,7 +265,8 @@ train:
         concat_input: true
         layer_norm: true
     load_checkpoint: true
-    load_path: /home/yongpeng/competition/leap_ws/src/leap_XL/leap_sim/leapsim/runs/chocolate-lake-144/nn/LeapHand.pth
+    # load_path: /home/yongpeng/competition/leap_ws/src/leap_XL/leap_sim/leapsim/runs/chocolate-lake-144/nn/LeapHand.pth
+    load_path: 'chocolate-lake-144/nn/LeapHand.pth'
     config:
       name: LeapHand
       full_experiment_name: LeapHand
@@ -322,7 +323,8 @@ num_threads: 4
 solver_type: 1
 num_subscenes: 4
 test: true
-checkpoint: /home/yongpeng/competition/leap_ws/src/leap_XL/leap_sim/leapsim/runs/chocolate-lake-144/nn/LeapHand.pth
+# checkpoint: /home/yongpeng/competition/leap_ws/src/leap_XL/leap_sim/leapsim/runs/chocolate-lake-144/nn/LeapHand.pth
+checkpoint: 'chocolate-lake-144/nn/LeapHand.pth'
 multi_gpu: false
 default_run_name: LeapHand
 log_to_sheet: true
