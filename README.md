@@ -9,7 +9,7 @@ Our approach won the championship of the In-Hand Manipulation Track of the 9th R
 ### Hardware
 - 1x RealSense D405 camera (any RGB camera is supported)
 - 1x LEAP Hand ([url](https://v1.leaphand.com/)) and set the baud rate to 3000000
-- Other parts (will be launched after acceptance)
+- Other parts (see the supplementary CAD files and the corresponding .txt)
     - 3D-printed parts
     - Silicone fingertip
     - The object
@@ -30,30 +30,32 @@ Our approach won the championship of the In-Hand Manipulation Track of the 9th R
     pip install -r requirements.txt
     ```
 - Create a new ROS workspace and clone the repo into `src` folder, then `catkin_make_isolated` the workspace
+- Prepare the datasets `runs/` an `cache/` (see the supplementary Datasets and the corresponding .txt)
 
-## Run the task
+## Examples
+### Run the task
 ```
-# start the system
+# In the first terminal, start the system
 roslaunch leap_hardware system.launch
 
-# start the RL agents
+# In the second terminal, start the RL agents
 cd leap_sim/leapsim/hardware
 python ./agent_hw.py
 
-# run the task
+# In the third terminal, run the task
 cd leap_task_B/scripts
 python ./taskB_highlevel.py
 ```
 
-## Train the policies
+### Train the policies
 We refer to the LEAP Hand official [repo](https://github.com/leap-hand/LEAP_Hand_Sim) for RL training 
 
 ```
 cd leap_sim/leapsim
 
 # train the ROT policy
-python3 train.py task=LeapHandRot max_iterations=5000 task.env.object.type=cube_50mm task.env.grasp_cache_name=<YOUR-GRASP-CACHE-NAME> wandb_activate=true
+python3 train.py task=LeapHandRot max_iterations=5000 task.env.object.type=cube_50mm task.env.grasp_cache_name=custom_grasp_cache_v6flip wandb_activate=true
 
 # train the FLIP policy
-python3 train.py task=LeapHandFlip max_iterations=5000 task.env.object.type=cube_50mm task.env.grasp_cache_name=<YOUR-GRASP-CACHE-NAME> wandb_activate=true
+python3 train.py task=LeapHandFlip max_iterations=5000 task.env.object.type=cube_50mm task.env.grasp_cache_name=custom_grasp_cache_v4cw wandb_activate=true
 ```
