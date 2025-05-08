@@ -23,13 +23,26 @@ Our approach won the championship of the In-Hand Manipulation Track of the 9th R
     joint_state_publisher_gui
     robot_state_publisher
     ```
-- Install dependencies of LEAP Hand such as the Dynamixel SDK, please refer to this [repo](https://github.com/leap-hand/LEAP_Hand_API)
-- Install Pinocchio ([reference](https://stack-of-tasks.github.io/pinocchio/download.html)) and NVIDIA Isaac Gym Preview 4 ([reference](https://developer.nvidia.com/isaac-gym))
-- Install Python dependencies (we recommend create a conda venv first)
+- Install dependencies of LEAP Hand such as the Dynamixel SDK ([reference](#install-leap-hand-sdk))
+- Install Pinocchio ([reference](#install-pinocchio)) and NVIDIA Isaac Gym Preview 4 ([reference](#install-isaac-gym))
+- Install Python dependencies into the `rlgpu` virtual env
     ```
     pip install -r requirements.txt
     ```
-- Create a new ROS workspace and clone the repo into `src` folder, then `catkin_make_isolated` the workspace
+- Create a new ROS workspace and clone these repositories into `src` folder, then `catkin_make_isolated` the workspace
+    ```
+    cd path-to-your-workspace/src
+
+    # clone this repo
+    git clone https://github.com/RGMC-XL-team/inhand_reorientation.git
+    
+    # clone the evaluator repo (there are some dependencies in use)
+    git clone https://github.com/Rice-RobotPI-Lab/RGMC_In-Hand_Manipulation_2024.git
+    git checkout real-eval
+
+    cd path-to-your-workspace/
+    catkin_make_isolated
+    ```
 - Prepare the datasets `runs/` an `cache/` (see the supplementary Datasets and the corresponding .txt)
 
 ## Examples
@@ -59,3 +72,39 @@ python3 train.py task=LeapHandRot max_iterations=5000 task.env.object.type=cube_
 # train the FLIP policy
 python3 train.py task=LeapHandFlip max_iterations=5000 task.env.object.type=cube_50mm task.env.grasp_cache_name=custom_grasp_cache_v4cw wandb_activate=true
 ```
+
+## Appendix
+
+### <span id="install_leap_hand_sdk">Install LEAP Hand SDK</span>
+1. ***Hardware Setup*** Visit [official repo](https://github.com/leap-hand/LEAP_Hand_API) and follow the instructions in `Hardware Setup`. Please install Dynamixel Wizard following the instructions [here](https://emanual.robotis.com/docs/en/software/dynamixel/dynamixel_wizard2/#install-linux). Note that we configure the baud rate of all servos to be `3000000` instead of `4000000`. Check baud rate setting if you encounter any communication problems
+2. ***Software Setup*** Follow the README in `python/` to install the python dependencies
+
+
+### <span id="install_isaac_gym">Install Isaac Gym</span>
+1. ***Download Package*** Download Isaac Gym Preview 4 release for Ubuntu 18.04/20.04 from the [official website](https://developer.nvidia.com/isaac-gym), please check if your system meets the requirements. Extract the downloaded file to `IsaacGym_Preview_4_Package/`
+2. ***Create Conda Virtual Env*** Please DO NOT execute `./create_conda_env_rlgpu.sh` as requested by the official installation instructions. Instead, create conda environment manually to install the correct version of Python, torch, and cuda
+    ```
+    # create env (python 3.8)
+    conda create -n rlgpu python=3.8
+    
+    # activate env
+    conda activate rlgpu
+    
+    # install isaac gym
+    cd IsaacGym_Preview_4_Package/isaacgym/python
+    pip install -e .
+
+    # (optional) test installation
+    python joint_monkey.py
+
+    # install pytorch
+    pip3 install torch==2.2.2 --index-url https://download.pytorch.org/whl/cu118
+    ```
+
+### <span id="install_pinocchio">Install Pinocchio</span>
+1. ***Installation*** Follow the instructions in `Add robotpkg apt repository` and `Install Pinocchio` in the [official website](https://stack-of-tasks.github.io/pinocchio/download.html)
+2. ***Configure environment variables*** Follow the instructions in `Configure environment variables`, except for the `PYTHONPATH` variable, change `python3.10` to `python3.8`. Because we are using `python3.8` for this project
+3. ***Check*** Pinocchio should now be imported by any python3.8 env, try `import pinocchio as pin` in `rlgpu` (installed with [isaacgym](#install-isaac-gym))
+
+
+## <span id="trouble_shooting">Trouble Shooting</span>

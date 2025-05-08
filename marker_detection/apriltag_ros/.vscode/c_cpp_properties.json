@@ -1,0 +1,24 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/easy_handeye_msgs/include/**",
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/apriltag_ros/include/**",
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/apriltag/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/yongpeng/hardware/catkin_ws2/src/marker_detection/apriltag_ros/apriltag_ros/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

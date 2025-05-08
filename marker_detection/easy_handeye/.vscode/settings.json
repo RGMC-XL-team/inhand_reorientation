@@ -1,0 +1,18 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/rqt_easy_handeye/lib/python3/dist-packages",
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/easy_handeye_msgs/lib/python3/dist-packages",
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/easy_handeye/lib/python3/dist-packages",
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/RGMC_In-Hand_Manipulation_2024/lib/python3/dist-packages",
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/apriltag_ros/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/rqt_easy_handeye/lib/python3/dist-packages",
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/easy_handeye_msgs/lib/python3/dist-packages",
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/easy_handeye/lib/python3/dist-packages",
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/RGMC_In-Hand_Manipulation_2024/lib/python3/dist-packages",
+        "/home/yongpeng/hardware/catkin_ws2/devel_isolated/apriltag_ros/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages"
+    ]
+}

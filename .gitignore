@@ -1,12 +1,12 @@
 leap_hardware/debug/*.npy
 leap_sim/leapsim/debug/*
 # hardware drivers and perception modules
-marker_detection/*
-realsense-ros/*
+# marker_detection/*
+# realsense-ros/*
 RGMC_In-Hand_Manipulation_2024/*
-apriltag/*
-apriltag_ros/*
-easy_handeye/*
+# apriltag/*
+# apriltag_ros/*
+# easy_handeye/*
 Azure_Kinect_ROS_Driver/*
 azure_kinect_notes/*
 # generated cache, data and logs

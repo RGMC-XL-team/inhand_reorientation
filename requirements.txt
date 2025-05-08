@@ -2,9 +2,11 @@ numpy==1.20.3
 transforms3d==0.4.1
 pyquaternion==0.9.9
 scipy==1.10.1
-torch==2.2.2       # cuda 11.8
-torchvision==0.17.2
+# torch==2.2.2       # cuda 11.8
+# torchvision==0.17.2
 rl-games==1.5.2
 gym==0.23.1
 lxml==5.2.0
 setuptools==65.5.1
+empy==3.3.4
+rospkg==1.5.0
