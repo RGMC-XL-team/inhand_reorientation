@@ -9,7 +9,7 @@ Our approach won the championship of the In-Hand Manipulation Track of the 9th R
 ### Hardware
 - 1x RealSense D405 camera (any RGB camera is supported)
 - 1x LEAP Hand ([url](https://v1.leaphand.com/)) and set the baud rate to 3000000
-- Other parts (see the supplementary CAD files and the corresponding .txt)
+- Other parts (see the supplementary [CAD files](https://drive.google.com/drive/folders/1wRGaV5bB4EGYVtHWL2-WbT_hgUvj4KIQ?usp=sharing) and the corresponding .txt)
     - 3D-printed parts
     - Silicone fingertip
     - The object
@@ -43,7 +43,7 @@ Our approach won the championship of the In-Hand Manipulation Track of the 9th R
     cd path-to-your-workspace/
     catkin_make_isolated
     ```
-- Prepare the datasets `runs/` an `cache/` (see the supplementary Datasets and the corresponding .txt)
+- Prepare the datasets `runs/` an `cache/` (see the supplementary [Datasets](https://drive.google.com/drive/folders/1GN-KxQTjhRVIoPXXx9aKyV5DzTSBRsf9?usp=sharing) and the corresponding .txt)
 
 ## Examples
 ### Run the task
