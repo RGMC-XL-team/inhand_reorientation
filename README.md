@@ -25,7 +25,7 @@ Our approach won the championship of the In-Hand Manipulation Track of the 9th R
     ```
 - Install dependencies of LEAP Hand such as the Dynamixel SDK ([reference](#install-leap-hand-sdk))
 - Install Pinocchio ([reference](#install-pinocchio)) and NVIDIA Isaac Gym Preview 4 ([reference](#install-isaac-gym))
-- Install Python dependencies into the `rlgpu` virtual env
+- Install Python dependencies into the `rlgpu` virtual env (you can find `requirements.txt` in the root of this repo)
     ```
     pip install -r requirements.txt
     ```
@@ -89,6 +89,9 @@ python3 train.py task=LeapHandFlip max_iterations=5000 task.env.object.type=cube
     
     # activate env
     conda activate rlgpu
+
+    # install pytorch
+    pip3 install torch==2.2.2 --index-url https://download.pytorch.org/whl/cu118
     
     # install isaac gym
     cd IsaacGym_Preview_4_Package/isaacgym/python
@@ -96,9 +99,6 @@ python3 train.py task=LeapHandFlip max_iterations=5000 task.env.object.type=cube
 
     # (optional) test installation
     python joint_monkey.py
-
-    # install pytorch
-    pip3 install torch==2.2.2 --index-url https://download.pytorch.org/whl/cu118
     ```
 
 ### <span id="install_pinocchio">Install Pinocchio</span>
